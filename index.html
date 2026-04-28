@@ -1071,16 +1071,51 @@ let timeModalTarget = null;
 let clockInterval = null;
 let swapModalForExercise = null;
 
-// ── SUPABASE CONFIG ───────────────────────────────────────────────────────
+// ── SUPABASE CONFIG (direct REST — no SDK needed) ───────────────────────
 const SUPABASE_URL = 'https://kodlikwntrkggwmuulgg.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvZGxpa3dudHJrZ2d3bXV1bGdnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MDA5NDcsImV4cCI6MjA5Mjk3Njk0N30.ihi1Iocuvo9V3xguICExfov7GRc4PEJMk7BZWHdA6ec';
-let db = null;
-try {
-  if (window.supabase && window.supabase.createClient) {
-    db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const DB_HEADERS = {
+  'apikey': SUPABASE_KEY,
+  'Authorization': 'Bearer ' + SUPABASE_KEY,
+  'Content-Type': 'application/json'
+};
+
+const FETCH_OPTS = { mode: 'cors', credentials: 'omit' };
+
+async function dbFetch(path, opts = {}) {
+  const res = await fetch(SUPABASE_URL + path, { ...FETCH_OPTS, ...opts, headers: { ...DB_HEADERS, ...(opts.headers||{}) } });
+  if (!res.ok) {
+    const t = await res.text();
+    let msg;
+    try { const j = JSON.parse(t); msg = j.message || j.error || t; } catch { msg = t; }
+    throw new Error('HTTP ' + res.status + ': ' + msg);
   }
-} catch(e) {
-  console.warn('Supabase init failed, using localStorage only:', e);
+  return res;
+}
+
+async function dbLoad() {
+  const res = await dbFetch('/rest/v1/workouts?select=workout_data&order=created_at.desc');
+  return res.json();
+}
+
+async function dbUpsert(rows) {
+  await dbFetch('/rest/v1/workouts?on_conflict=workout_date', {
+    method: 'POST',
+    headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify(rows)
+  });
+}
+
+async function dbDelete(workout_date) {
+  await dbFetch('/rest/v1/workouts?workout_date=eq.' + encodeURIComponent(workout_date), { method: 'DELETE' });
+}
+
+async function dbPing() {
+  // Quick connectivity test — hits the health endpoint
+  try {
+    const res = await fetch(SUPABASE_URL + '/rest/v1/', { ...FETCH_OPTS, headers: DB_HEADERS });
+    return res.ok || res.status === 200;
+  } catch { return false; }
 }
 
 // ── INIT ────────────────────────────────────────────────────────────────────
@@ -1090,7 +1125,7 @@ function setSyncBadge(state, msg) {
   if (state === 'online')  { el.textContent = '● CLOUD'; el.className = 'sync-badge online'; el.title = 'Synced to cloud'; }
   if (state === 'offline') { el.textContent = '○ LOCAL'; el.className = 'sync-badge offline'; el.title = 'No cloud connection'; }
   if (state === 'syncing') { el.textContent = '◌ SYNC';  el.className = 'sync-badge offline'; el.title = 'Syncing...'; }
-  if (state === 'error')   { el.textContent = '✕ SYNC';  el.className = 'sync-badge error';   el.title = msg || 'Sync error — check console'; }
+  if (state === 'error')   { el.textContent = '✕ SYNC';  el.className = 'sync-badge error';   el.title = msg || 'Sync error — check console'; el.onclick = () => alert('Sync error:\n' + (msg||'check console')); }
 }
 
 async function init() {
@@ -1098,15 +1133,16 @@ async function init() {
   const saved = localStorage.getItem('liftlog_workouts');
   if (saved) { try { workouts = JSON.parse(saved); } catch(e) {} }
 
-  // Then try to sync from Supabase (cloud wins for same date)
-  if (db) {
+  // Then try to sync from Supabase
+  const reachable = await dbPing();
+  if (!reachable) {
+    console.warn('Supabase unreachable — CORS or network issue. If opening as file://, add "null" to Supabase allowed origins (Dashboard → Settings → API).');
+    setSyncBadge('offline');
+  } else {
     try {
-      const { data } = await db
-        .from('workouts')
-        .select('workout_data')
-        .order('created_at', { ascending: false });
-      if (data && data.length > 0) {
-        const cloudWorkouts = data.map(d => d.workout_data);
+      const rows = await dbLoad();
+      if (rows && rows.length > 0) {
+        const cloudWorkouts = rows.map(r => r.workout_data);
         const cloudDates = new Set(cloudWorkouts.map(w => w.date));
         const merged = [...cloudWorkouts, ...workouts.filter(w => !cloudDates.has(w.date))];
         workouts = merged;
@@ -1117,7 +1153,8 @@ async function init() {
       }
       setSyncBadge('online');
     } catch(e) {
-      console.warn('Supabase sync failed, using local data:', e);
+      console.warn('Supabase sync failed:', e.message || e);
+      setSyncBadge('error', e.message);
     }
   }
 
@@ -1130,23 +1167,16 @@ async function init() {
 
 async function save() {
   localStorage.setItem('liftlog_workouts', JSON.stringify(workouts));
-  if (!db) { setSyncBadge('offline'); return; }
   try {
     const rows = workouts.map(w => ({
       workout_date: w.date,
       workout_data: w,
       created_at: new Date().toISOString()
     }));
-    const { error } = await db.from('workouts').upsert(rows, { onConflict: 'workout_date' });
-    if (error) {
-      const msg = error.message || error.details || error.hint || JSON.stringify(error);
-      console.error('Supabase save error — code:', error.code, '| message:', error.message, '| details:', error.details, '| hint:', error.hint);
-      setSyncBadge('error', msg);
-    } else {
-      setSyncBadge('online');
-    }
+    await dbUpsert(rows);
+    setSyncBadge('online');
   } catch(e) {
-    console.error('Supabase save exception:', e.message || JSON.stringify(e));
+    console.error('Supabase save error:', e.message || e);
     setSyncBadge('error', e.message);
   }
 }
@@ -1683,9 +1713,9 @@ async function deleteWorkout(id) {
   const target = workouts.find(w => w.id === id);
   workouts = workouts.filter(w => w.id !== id);
   save();
-  if (target && db) {
-    try { await db.from('workouts').delete().eq('workout_date', target.date); }
-    catch(e) { console.error('Supabase delete error:', e); }
+  if (target) {
+    try { await dbDelete(target.date); }
+    catch(e) { console.error('Supabase delete error:', e.message || e); }
   }
   viewingWorkout = null;
   renderHistory();
