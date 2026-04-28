@@ -1773,7 +1773,15 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
   });
 });
 
-init();
+// Wait for Supabase to load, then init
+function startApp() {
+  if (typeof window.supabase === 'undefined') {
+    setTimeout(startApp, 100);
+    return;
+  }
+  init();
+}
+startApp();
 </script>
 </body>
 </html>
