@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>LIFTLOG</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1059,10 +1060,41 @@ let timeModalTarget = null;
 let clockInterval = null;
 let swapModalForExercise = null;
 
+// ── SUPABASE CONFIG ───────────────────────────────────────────────────────
+const SUPABASE_URL = 'https://kodlikwntrkggwmuulgg.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvZGxpa3dudHJrZ2d3bXV1bGdnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MDA5NDcsImV4cCI6MjA5Mjk3Njk0N30.ihi1Iocuvo9V3xguICExfov7GRc4PEJMk7BZWHdA6ec';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
 // ── INIT ────────────────────────────────────────────────────────────────────
-function init() {
-  const saved = localStorage.getItem('liftlog_workouts');
-  if (saved) try { workouts = JSON.parse(saved); } catch(e) {}
+async function init() {
+  // Load from Supabase first, fallback to localStorage
+  try {
+    const { data, error } = await supabase
+      .from('workouts')
+      .select('workout_data')
+      .order('created_at', { ascending: false });
+    
+    if (data && data.length > 0) {
+      // Merge cloud data with local (cloud wins for duplicates by date)
+      const cloudWorkouts = data.map(d => d.workout_data);
+      const localSaved = localStorage.getItem('liftlog_workouts');
+      const localWorkouts = localSaved ? JSON.parse(localSaved) : [];
+      
+      // Keep local workouts that don't exist in cloud
+      const cloudDates = new Set(cloudWorkouts.map(w => w.date));
+      const merged = [...cloudWorkouts, ...localWorkouts.filter(w => !cloudDates.has(w.date))];
+      workouts = merged;
+      localStorage.setItem('liftlog_workouts', JSON.stringify(workouts));
+    } else {
+      const saved = localStorage.getItem('liftlog_workouts');
+      if (saved) try { workouts = JSON.parse(saved); } catch(e) {}
+    }
+  } catch(e) {
+    console.error('Supabase load error, using localStorage:', e);
+    const saved = localStorage.getItem('liftlog_workouts');
+    if (saved) try { workouts = JSON.parse(saved); } catch(e) {}
+  }
+  
   const now = new Date();
   document.getElementById('header-date').textContent = now.toLocaleDateString('en-IN', {weekday:'short', month:'short', day:'numeric'});
   updateStreak();
@@ -1070,7 +1102,25 @@ function init() {
   renderExercises();
 }
 
-function save() { localStorage.setItem('liftlog_workouts', JSON.stringify(workouts)); }
+async function save() { 
+  localStorage.setItem('liftlog_workouts', JSON.stringify(workouts));
+  
+  // Save to Supabase (upsert by date)
+  try {
+    const todayWorkout = workouts.find(w => w.date === new Date().toISOString().slice(0,10));
+    if (todayWorkout) {
+      await supabase
+        .from('workouts')
+        .upsert({
+          workout_date: todayWorkout.date,
+          workout_data: todayWorkout,
+          created_at: new Date().toISOString()
+        }, { onConflict: 'workout_date' });
+    }
+  } catch(e) {
+    console.error('Supabase save error:', e);
+  }
+}
 
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
