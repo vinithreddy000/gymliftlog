@@ -70,6 +70,16 @@ body {
 .logo span { color: var(--text3); }
 .header-right { display: flex; align-items: center; gap: 10px; }
 .date-tag { font-size: 10px; color: var(--text2); letter-spacing: 1px; }
+.sync-badge {
+  font-size: 9px;
+  letter-spacing: 1px;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-weight: 700;
+}
+.sync-badge.online { color: #39ff6a; background: rgba(57,255,106,0.1); border: 1px solid rgba(57,255,106,0.3); }
+.sync-badge.error { color: #ff3b55; background: rgba(255,59,85,0.1); border: 1px solid rgba(255,59,85,0.3); }
+.sync-badge.offline { color: #7a8896; background: rgba(122,136,150,0.1); border: 1px solid rgba(122,136,150,0.2); }
 .streak-badge {
   font-size: 10px;
   color: var(--orange);
@@ -772,6 +782,7 @@ input::placeholder { color: var(--text3); }
   <div class="header">
     <div class="logo">LIFT<span>LOG</span></div>
     <div class="header-right">
+      <div class="sync-badge offline" id="sync-badge">○ LOCAL</div>
       <div class="streak-badge" id="streak-badge" style="display:none"></div>
       <div class="date-tag" id="header-date"></div>
     </div>
@@ -1063,38 +1074,53 @@ let swapModalForExercise = null;
 // ── SUPABASE CONFIG ───────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://kodlikwntrkggwmuulgg.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtvZGxpa3dudHJrZ2d3bXV1bGdnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MDA5NDcsImV4cCI6MjA5Mjk3Njk0N30.ihi1Iocuvo9V3xguICExfov7GRc4PEJMk7BZWHdA6ec';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let db = null;
+try {
+  if (window.supabase && window.supabase.createClient) {
+    db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }
+} catch(e) {
+  console.warn('Supabase init failed, using localStorage only:', e);
+}
 
 // ── INIT ────────────────────────────────────────────────────────────────────
+function setSyncBadge(state, msg) {
+  const el = document.getElementById('sync-badge');
+  if (!el) return;
+  if (state === 'online')  { el.textContent = '● CLOUD'; el.className = 'sync-badge online'; el.title = 'Synced to cloud'; }
+  if (state === 'offline') { el.textContent = '○ LOCAL'; el.className = 'sync-badge offline'; el.title = 'No cloud connection'; }
+  if (state === 'syncing') { el.textContent = '◌ SYNC';  el.className = 'sync-badge offline'; el.title = 'Syncing...'; }
+  if (state === 'error')   { el.textContent = '✕ SYNC';  el.className = 'sync-badge error';   el.title = msg || 'Sync error — check console'; }
+}
+
 async function init() {
-  // Load from Supabase first, fallback to localStorage
-  try {
-    const { data, error } = await supabase
-      .from('workouts')
-      .select('workout_data')
-      .order('created_at', { ascending: false });
-    
-    if (data && data.length > 0) {
-      // Merge cloud data with local (cloud wins for duplicates by date)
-      const cloudWorkouts = data.map(d => d.workout_data);
-      const localSaved = localStorage.getItem('liftlog_workouts');
-      const localWorkouts = localSaved ? JSON.parse(localSaved) : [];
-      
-      // Keep local workouts that don't exist in cloud
-      const cloudDates = new Set(cloudWorkouts.map(w => w.date));
-      const merged = [...cloudWorkouts, ...localWorkouts.filter(w => !cloudDates.has(w.date))];
-      workouts = merged;
-      localStorage.setItem('liftlog_workouts', JSON.stringify(workouts));
-    } else {
-      const saved = localStorage.getItem('liftlog_workouts');
-      if (saved) try { workouts = JSON.parse(saved); } catch(e) {}
+  // Always load localStorage first (instant)
+  const saved = localStorage.getItem('liftlog_workouts');
+  if (saved) { try { workouts = JSON.parse(saved); } catch(e) {} }
+
+  // Then try to sync from Supabase (cloud wins for same date)
+  if (db) {
+    try {
+      const { data } = await db
+        .from('workouts')
+        .select('workout_data')
+        .order('created_at', { ascending: false });
+      if (data && data.length > 0) {
+        const cloudWorkouts = data.map(d => d.workout_data);
+        const cloudDates = new Set(cloudWorkouts.map(w => w.date));
+        const merged = [...cloudWorkouts, ...workouts.filter(w => !cloudDates.has(w.date))];
+        workouts = merged;
+        localStorage.setItem('liftlog_workouts', JSON.stringify(workouts));
+        updateStreak();
+        renderMuscleGrid();
+        renderExercises();
+      }
+      setSyncBadge('online');
+    } catch(e) {
+      console.warn('Supabase sync failed, using local data:', e);
     }
-  } catch(e) {
-    console.error('Supabase load error, using localStorage:', e);
-    const saved = localStorage.getItem('liftlog_workouts');
-    if (saved) try { workouts = JSON.parse(saved); } catch(e) {}
   }
-  
+
   const now = new Date();
   document.getElementById('header-date').textContent = now.toLocaleDateString('en-IN', {weekday:'short', month:'short', day:'numeric'});
   updateStreak();
@@ -1102,23 +1128,26 @@ async function init() {
   renderExercises();
 }
 
-async function save() { 
+async function save() {
   localStorage.setItem('liftlog_workouts', JSON.stringify(workouts));
-  
-  // Save to Supabase (upsert by date)
+  if (!db) { setSyncBadge('offline'); return; }
   try {
-    const todayWorkout = workouts.find(w => w.date === new Date().toISOString().slice(0,10));
-    if (todayWorkout) {
-      await supabase
-        .from('workouts')
-        .upsert({
-          workout_date: todayWorkout.date,
-          workout_data: todayWorkout,
-          created_at: new Date().toISOString()
-        }, { onConflict: 'workout_date' });
+    const rows = workouts.map(w => ({
+      workout_date: w.date,
+      workout_data: w,
+      created_at: new Date().toISOString()
+    }));
+    const { error } = await db.from('workouts').upsert(rows, { onConflict: 'workout_date' });
+    if (error) {
+      const msg = error.message || error.details || error.hint || JSON.stringify(error);
+      console.error('Supabase save error — code:', error.code, '| message:', error.message, '| details:', error.details, '| hint:', error.hint);
+      setSyncBadge('error', msg);
+    } else {
+      setSyncBadge('online');
     }
   } catch(e) {
-    console.error('Supabase save error:', e);
+    console.error('Supabase save exception:', e.message || JSON.stringify(e));
+    setSyncBadge('error', e.message);
   }
 }
 
@@ -1405,13 +1434,37 @@ function addSet(ei) { currentExercises[ei].sets.push({kg:'',reps:''}); renderExe
 function removeSet(ei, si) { if (currentExercises[ei].sets.length > 1) { currentExercises[ei].sets.splice(si,1); renderExercises(); } }
 function updateSet(ei, si, field, val) {
   currentExercises[ei].sets[si][field] = parseFloat(val) || 0;
-  // Live re-render for PR check and vol column
+
+  // Surgically update just the vol cell + PR row highlight — never re-render (would kill focus)
   const card = document.getElementById(`ex-card-${ei}`);
   if (!card) return;
-  // Update just the vol cell
-  const rows = card.querySelectorAll('tbody tr, table tr:not(:first-child)');
-  // Simple re-render
-  renderExercises();
+
+  const s = currentExercises[ei].sets[si];
+  const vol = s.kg && s.reps ? Math.round(s.kg * s.reps) : '';
+
+  // table rows: row 0 = header, rows 1+ = set data
+  const rows = card.querySelectorAll('table tr');
+  const dataRow = rows[si + 1];
+  if (dataRow) {
+    const volCell = dataRow.querySelector('.set-vol');
+    if (volCell) volCell.textContent = vol ? vol + 'kg' : '—';
+    const isPR = checkIfPRSet(currentExercises[ei].name, s.kg, s.reps);
+    dataRow.style.background = isPR ? 'rgba(255,224,51,0.04)' : '';
+  }
+
+  // Update PR badge in card header without re-rendering
+  const existingPR = card.querySelector('.pr-indicator');
+  const newPRLabel = getPRIndicator(currentExercises[ei]);
+  if (newPRLabel && !existingPR) {
+    const headerLeft = card.querySelector('.ex-header-left');
+    if (headerLeft) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = newPRLabel;
+      headerLeft.appendChild(tmp.firstElementChild);
+    }
+  } else if (!newPRLabel && existingPR) {
+    existingPR.remove();
+  }
 }
 
 // ── SWAP MODAL ─────────────────────────────────────────────────────────────
@@ -1625,10 +1678,15 @@ function renderWorkoutDetail(w) {
   document.getElementById('history-filters').innerHTML = '';
 }
 
-function deleteWorkout(id) {
+async function deleteWorkout(id) {
   if (!confirm('Delete this workout?')) return;
+  const target = workouts.find(w => w.id === id);
   workouts = workouts.filter(w => w.id !== id);
   save();
+  if (target && db) {
+    try { await db.from('workouts').delete().eq('workout_date', target.date); }
+    catch(e) { console.error('Supabase delete error:', e); }
+  }
   viewingWorkout = null;
   renderHistory();
 }
@@ -1773,15 +1831,7 @@ document.querySelectorAll('.modal-overlay').forEach(overlay => {
   });
 });
 
-// Wait for Supabase to load, then init
-function startApp() {
-  if (typeof window.supabase === 'undefined') {
-    setTimeout(startApp, 100);
-    return;
-  }
-  init();
-}
-startApp();
+init();
 </script>
 </body>
 </html>
