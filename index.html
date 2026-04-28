@@ -1099,9 +1099,13 @@ async function dbLoad() {
 }
 
 async function dbUpsert(rows) {
-  await dbFetch('/rest/v1/workouts?on_conflict=workout_date', {
+  if (!rows.length) return;
+  // Delete existing rows for these dates, then re-insert — no constraint needed
+  const dateList = rows.map(r => r.workout_date).join(',');
+  await dbFetch('/rest/v1/workouts?workout_date=in.(' + dateList + ')', { method: 'DELETE' });
+  await dbFetch('/rest/v1/workouts', {
     method: 'POST',
-    headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    headers: { 'Prefer': 'return=minimal' },
     body: JSON.stringify(rows)
   });
 }
@@ -1111,10 +1115,10 @@ async function dbDelete(workout_date) {
 }
 
 async function dbPing() {
-  // Quick connectivity test — hits the health endpoint
+  // Any HTTP response (even 401) = server is reachable
   try {
-    const res = await fetch(SUPABASE_URL + '/rest/v1/', { ...FETCH_OPTS, headers: DB_HEADERS });
-    return res.ok || res.status === 200;
+    await fetch(SUPABASE_URL + '/rest/v1/', { ...FETCH_OPTS, headers: DB_HEADERS });
+    return true;
   } catch { return false; }
 }
 
