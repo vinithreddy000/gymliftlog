@@ -1555,25 +1555,112 @@ function onLoginSuccess() {
 
 // ── DATA FUNCTIONS (user-scoped) ──────────────────────────────────────────
 async function dbLoad() {
-  // Order by workout_date so order is stable and correct regardless of insert time
   const res = await dbFetch('/rest/v1/workouts?select=workout_data&order=workout_date.desc');
   return res.json();
 }
 
-// Upsert a SINGLE workout row — never touches other rows so id/created_at are preserved
-async function dbUpsertOne(row) {
+async function dbGetNextId() {
+  const userId = currentSession?.user?.id;
+  if (!userId) return 1;
+  const res = await dbFetch('/rest/v1/workouts?user_id=eq.' + userId + '&select=id&order=id.desc&limit=1');
+  const rows = await res.json();
+  return rows.length > 0 ? (rows[0].id + 1) : 1;
+}
+
+async function dbInsertOne(workout) {
+  const userId = currentSession?.user?.id;
+  if (!userId) throw new Error('Not logged in');
+  const nextId = await dbGetNextId();
+  // Keep workout_data id in sync with table id
+  const workoutWithId = { ...workout, id: nextId };
+  const row = {
+    id: nextId,
+    workout_date: workout.date,
+    workout_data: workoutWithId,
+    created_at: new Date().toISOString(),
+    user_id: userId
+  };
   await dbFetch('/rest/v1/workouts', {
     method: 'POST',
-    headers: {
-      'Prefer': 'resolution=merge-duplicates,return=minimal',
-      'Content-Type': 'application/json'
-    },
+    headers: { 'Prefer': 'return=minimal' },
     body: JSON.stringify(row)
   });
+  return nextId;
 }
 
 async function dbDelete(workout_date) {
   await dbFetch('/rest/v1/workouts?workout_date=eq.' + encodeURIComponent(workout_date), { method: 'DELETE' });
+}
+
+// ── DRAFT AUTO-SAVE ───────────────────────────────────────────────────────
+const DRAFT_KEY = 'liftlog_draft';
+
+function saveDraft() {
+  try {
+    const draft = {
+      currentExercises: JSON.parse(JSON.stringify(currentExercises)),
+      selectedMuscles: [...selectedMuscles],
+      inTime,
+      outTime,
+      warmup: document.getElementById('warmup-min')?.value || '',
+      notes: document.getElementById('session-notes')?.value || '',
+      savedAt: Date.now()
+    };
+    // Only save if there's something meaningful
+    if (draft.currentExercises.length > 0 || draft.selectedMuscles.length > 0 || draft.inTime) {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    }
+  } catch(e) {}
+}
+
+function clearDraft(delay = 0) {
+  if (delay > 0) {
+    setTimeout(() => localStorage.removeItem(DRAFT_KEY), delay);
+  } else {
+    localStorage.removeItem(DRAFT_KEY);
+  }
+}
+
+function restoreDraft() {
+  const raw = localStorage.getItem(DRAFT_KEY);
+  if (!raw) return;
+  try {
+    const draft = JSON.parse(raw);
+    if (!draft.currentExercises?.length && !draft.selectedMuscles?.length && !draft.inTime) return;
+
+    currentExercises = draft.currentExercises || [];
+    selectedMuscles = draft.selectedMuscles || [];
+    inTime = draft.inTime || null;
+    outTime = draft.outTime || null;
+
+    if (draft.warmup) document.getElementById('warmup-min').value = draft.warmup;
+    if (draft.notes) document.getElementById('session-notes').value = draft.notes;
+
+    // Restore time display
+    ['in', 'out'].forEach(t => {
+      const time = t === 'in' ? inTime : outTime;
+      if (time) {
+        const el = document.getElementById(t + '-time-display');
+        el.textContent = time; el.classList.remove('empty');
+        document.getElementById(t + '-time-block').classList.add('has-time');
+        const btn = document.getElementById(t + '-time-btn');
+        btn.textContent = 'Set ✓'; btn.classList.add('set'); btn.onclick = null;
+      }
+    });
+
+    renderMuscleGrid();
+    renderExercises();
+    updateDurationBadge();
+    checkLastWorkoutBanner();
+
+    // Show a subtle restore banner
+    const banner = document.createElement('div');
+    banner.id = 'draft-restored-banner';
+    banner.style.cssText = 'background:rgba(57,255,106,0.08);border:1px solid rgba(57,255,106,0.3);border-radius:8px;padding:8px 12px;margin-bottom:10px;font-size:11px;color:#39ff6a;letter-spacing:1px;display:flex;justify-content:space-between;align-items:center';
+    banner.innerHTML = '⚡ Draft restored from your last session &nbsp;<button onclick="document.getElementById(\'draft-restored-banner\').remove()" style="background:none;border:none;color:#39ff6a;cursor:pointer;font-size:13px">✕</button>';
+    const logPage = document.getElementById('page-log');
+    if (logPage) logPage.insertBefore(banner, logPage.firstChild);
+  } catch(e) {}
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────
@@ -1661,26 +1748,8 @@ async function init() {
   showAuthScreen();
 }
 
-// Save a single workout to cloud — never rewrites the whole table
-async function saveWorkoutToCloud(workout) {
-  const userId = currentSession?.user?.id;
-  const row = {
-    workout_date: workout.date,
-    workout_data: workout,
-    ...(userId ? { user_id: userId } : {})
-  };
-  await dbUpsertOne(row);
-}
-
-async function save(changedWorkout) {
+function saveToLocal() {
   localStorage.setItem('liftlog_workouts', JSON.stringify(workouts));
-  try {
-    if (changedWorkout) await saveWorkoutToCloud(changedWorkout);
-    setSyncBadge('online');
-  } catch(e) {
-    console.error('Supabase save error:', e.message || e);
-    setSyncBadge('error', e.message);
-  }
 }
 
 function showPage(name) {
@@ -1843,6 +1912,7 @@ function toggleMuscle(m) {
     assignMusclesToExercises();
     renderExercises();
   }
+  saveDraft();
 }
 
 function checkLastWorkoutBanner() {
@@ -2261,7 +2331,7 @@ function escapeAttr(str) {
 }
 
 // ── SAVE / CLEAR ──────────────────────────────────────────────────────────
-function saveWorkout() {
+async function saveWorkout() {
   if (!inTime) { alert('Set your check-in time first'); return; }
   if (selectedMuscles.length === 0) { alert('Select at least one muscle group'); return; }
   if (currentExercises.length === 0) { alert('Add at least one exercise'); return; }
@@ -2275,7 +2345,7 @@ function saveWorkout() {
   const notes = document.getElementById('session-notes').value;
 
   const workout = {
-    id: Date.now(),
+    id: 0, // will be replaced by dbInsertOne's returned nextId
     date: now.toISOString().slice(0,10),
     inTime, outTime: finalOut, duration, warmup,
     muscles: [...selectedMuscles],
@@ -2294,8 +2364,26 @@ function saveWorkout() {
     notes
   };
 
+  // Save button feedback
+  const saveBtn = document.getElementById('save-btn');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'SAVING...'; }
+
+  try {
+    const assignedId = await dbInsertOne(workout);
+    workout.id = assignedId;
+    setSyncBadge('online');
+  } catch(e) {
+    console.error('Supabase insert error:', e.message || e);
+    setSyncBadge('error', e.message);
+    workout.id = Date.now(); // fallback local id
+  }
+
+  if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'SAVE WORKOUT'; }
+
   workouts.unshift(workout);
-  save();
+  saveToLocal();
+  // Keep draft for 30 mins after submit, then auto-delete
+  clearDraft(30 * 60 * 1000);
   clearLog();
   showPage('history');
   updateStreak();
@@ -2407,7 +2495,7 @@ async function deleteWorkout(id) {
   if (!confirm('Delete this workout?')) return;
   const target = workouts.find(w => w.id === id);
   workouts = workouts.filter(w => w.id !== id);
-  save();
+  saveToLocal();
   if (target) {
     try { await dbDelete(target.date); }
     catch(e) { console.error('Supabase delete error:', e.message || e); }
