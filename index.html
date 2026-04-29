@@ -2003,7 +2003,7 @@ function checkLastWorkoutBanner() {
 function loadLastWorkout(id) {
   const last = workouts.find(w => w.id === id);
   if (!last) return;
-  currentExercises = last.exercises
+  const mapped = last.exercises
     .filter(ex => (ex.name || ex.name_raw) && ex.type !== 'warmup')
     .map(ex => {
       const name = ex.name || ex.name_raw;
@@ -2016,6 +2016,10 @@ function loadLastWorkout(id) {
         sets: getSets(ex).map(s => ({ kg: s.kg || s.weight || '', reps: s.reps || '' }))
       };
     });
+  // Cardio/incline walking always goes last
+  const nonCardio = mapped.filter(ex => ex.type !== 'cardio' && !isCardioEx(ex.name));
+  const cardio = mapped.filter(ex => ex.type === 'cardio' || isCardioEx(ex.name));
+  currentExercises = [...nonCardio, ...cardio];
   assignMusclesToExercises();
   renderExercises();
   document.getElementById('last-workout-banner').style.display = 'none';
@@ -2039,6 +2043,7 @@ function loadLastWorkoutFiltered() {
 
   const seenNames = new Set();
   const merged = [];
+  const mergedCardio = []; // cardio/common go to end
 
   function mapEx(ex) {
     const name = ex.name || ex.name_raw;
@@ -2052,7 +2057,7 @@ function loadLastWorkoutFiltered() {
     };
   }
 
-  // First: common/cardio from the overall most recent matching workout
+  // First: collect common/cardio from the overall most recent matching workout (but push to END)
   const overallLast = workouts.find(w => w.muscles.some(m => selectedMuscles.includes(m)));
   if (overallLast) {
     overallLast.exercises.forEach(ex => {
@@ -2061,7 +2066,7 @@ function loadLastWorkoutFiltered() {
       const nameLow = name.toLowerCase();
       if ((ex.type === 'cardio' || isCardioEx(nameLow) || COMMON_EXERCISES.has(nameLow)) && !seenNames.has(nameLow)) {
         seenNames.add(nameLow);
-        merged.push(mapEx(ex));
+        mergedCardio.push(mapEx(ex)); // saved for end
       }
     });
   }
@@ -2083,7 +2088,8 @@ function loadLastWorkoutFiltered() {
     });
   });
 
-  currentExercises = merged;
+  // Cardio/common (e.g. Incline Walking) always go last
+  currentExercises = [...merged, ...mergedCardio];
   assignMusclesToExercises();
   renderExercises();
   document.getElementById('last-workout-banner').style.display = 'none';
