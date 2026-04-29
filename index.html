@@ -1843,42 +1843,77 @@ function checkLastWorkoutBanner() {
   const banner = document.getElementById('last-workout-banner');
   if (selectedMuscles.length === 0) { banner.style.display = 'none'; return; }
 
-  // Find the most recent workout that has ANY of the selected muscles
-  const matching = workouts.filter(w => w.muscles.some(m => selectedMuscles.includes(m)));
-  if (matching.length === 0) { banner.style.display = 'none'; return; }
-  const last = matching[0];
-
-  // COMMON exercises that always load regardless of muscle filter
   const COMMON_EXERCISES = new Set([
     'cardio','cycling','walking','treadmill','incline walking','running',
     'warm up','warmup','pull ups','pullups','dead hang','dead hangs',
     'scapular pull ups','scapular pull','hyperextensions','stretching'
   ]);
 
-  // Only show exercises that belong to the selected muscles OR are common/cardio
-  const relevantExercises = last.exercises.filter(ex => {
-    const name = (ex.name || ex.name_raw || '').toLowerCase();
-    if (ex.type === 'warmup') return false; // skip warmup entry
-    if (ex.type === 'cardio' || isCardioEx(name)) return true; // cardio always included
-    if (COMMON_EXERCISES.has(name)) return true;
-    // Include if exercise's muscle matches any selected muscle
-    const exMuscle = ex.muscle || inferMuscleForExercise(ex.name || ex.name_raw || '');
-    return selectedMuscles.includes(exMuscle);
+  // For each selected muscle, find its most recent session independently
+  // Then merge: common/cardio from the most recent overall session, muscle exercises per muscle
+  const muscleLastWorkout = {}; // muscle -> most recent workout with that muscle
+  selectedMuscles.forEach(m => {
+    const found = workouts.find(w => w.muscles.includes(m));
+    if (found) muscleLastWorkout[m] = found;
   });
 
-  if (relevantExercises.length === 0) { banner.style.display = 'none'; return; }
+  const musclesWithHistory = Object.keys(muscleLastWorkout);
+  if (musclesWithHistory.length === 0) { banner.style.display = 'none'; return; }
+
+  // Build merged exercise preview
+  const seenNames = new Set();
+  const mergedExercises = [];
+
+  // First pass: common/cardio from the single most recent matching workout
+  const overallLast = workouts.find(w => w.muscles.some(m => selectedMuscles.includes(m)));
+  if (overallLast) {
+    overallLast.exercises.forEach(ex => {
+      const name = (ex.name || ex.name_raw || '');
+      if (!name || ex.type === 'warmup') return;
+      const nameLow = name.toLowerCase();
+      if ((ex.type === 'cardio' || isCardioEx(nameLow) || COMMON_EXERCISES.has(nameLow)) && !seenNames.has(nameLow)) {
+        seenNames.add(nameLow);
+        mergedExercises.push(ex);
+      }
+    });
+  }
+
+  // Second pass: per-muscle exercises from each muscle's own last session
+  selectedMuscles.forEach(m => {
+    const wo = muscleLastWorkout[m];
+    if (!wo) return;
+    wo.exercises.forEach(ex => {
+      const name = (ex.name || ex.name_raw || '');
+      if (!name || ex.type === 'warmup') return;
+      const nameLow = name.toLowerCase();
+      if (seenNames.has(nameLow)) return;
+      const exMuscle = ex.muscle || inferMuscleForExercise(name);
+      if (exMuscle === m) {
+        seenNames.add(nameLow);
+        mergedExercises.push(ex);
+      }
+    });
+  });
+
+  if (mergedExercises.length === 0) { banner.style.display = 'none'; return; }
+
+  // Build date label: show per-muscle dates if they differ
+  const dateLabels = [...new Set(musclesWithHistory.map(m => muscleLastWorkout[m].date))];
+  const dateStr = dateLabels.length === 1
+    ? formatDateShort(dateLabels[0])
+    : musclesWithHistory.map(m => `${m}: ${formatDateShort(muscleLastWorkout[m].date)}`).join(' · ');
 
   banner.style.display = 'block';
   banner.innerHTML = `
     <div class="last-workout-banner">
       <div class="lwb-header">
         <div class="lwb-title">⚡ Last ${selectedMuscles.join('+')} session</div>
-        <div class="lwb-date">${formatDateShort(last.date)}</div>
+        <div class="lwb-date" style="font-size:9px">${dateStr}</div>
       </div>
       <div class="lwb-exercises">
-        ${relevantExercises.map(e => `<div class="lwb-ex-pill">${e.name||e.name_raw||''}</div>`).join('')}
+        ${mergedExercises.map(e => `<div class="lwb-ex-pill">${e.name||e.name_raw||''}</div>`).join('')}
       </div>
-      <button class="load-last-btn" onclick="loadLastWorkoutFiltered(${last.id})">Load last session →</button>
+      <button class="load-last-btn" onclick="loadLastWorkoutFiltered()">Load last session →</button>
     </div>`;
 }
 
@@ -1904,36 +1939,68 @@ function loadLastWorkout(id) {
   document.getElementById('exercise-list').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
-// Filtered version: only loads exercises matching selected muscles (+ common/cardio)
-function loadLastWorkoutFiltered(id) {
-  const last = workouts.find(w => w.id === id);
-  if (!last) return;
+// Filtered version: finds last session per muscle and merges them
+function loadLastWorkoutFiltered() {
   const COMMON_EXERCISES = new Set([
     'cardio','cycling','walking','treadmill','incline walking','running',
     'warm up','warmup','pull ups','pullups','dead hang','dead hangs',
     'scapular pull ups','scapular pull','hyperextensions','stretching'
   ]);
-  currentExercises = last.exercises
-    .filter(ex => {
+
+  // Find the most recent workout per selected muscle
+  const muscleLastWorkout = {};
+  selectedMuscles.forEach(m => {
+    const found = workouts.find(w => w.muscles.includes(m));
+    if (found) muscleLastWorkout[m] = found;
+  });
+
+  const seenNames = new Set();
+  const merged = [];
+
+  function mapEx(ex) {
+    const name = ex.name || ex.name_raw;
+    if (isCardioEx(name) || ex.type === 'cardio') {
+      return { name, muscle: 'Cardio', type: 'cardio', duration_min: ex.duration_min || 0, sets: [], loaded: true };
+    }
+    return {
+      name, loaded: true,
+      muscle: ex.muscle || inferMuscleForExercise(name),
+      sets: getSets(ex).map(s => ({ kg: s.kg || s.weight || '', reps: s.reps || '' }))
+    };
+  }
+
+  // First: common/cardio from the overall most recent matching workout
+  const overallLast = workouts.find(w => w.muscles.some(m => selectedMuscles.includes(m)));
+  if (overallLast) {
+    overallLast.exercises.forEach(ex => {
       const name = (ex.name || ex.name_raw || '');
-      if (!name) return false;
-      if (ex.type === 'warmup') return false;
-      if (ex.type === 'cardio' || isCardioEx(name)) return true;
-      if (COMMON_EXERCISES.has(name.toLowerCase())) return true;
-      const exMuscle = ex.muscle || inferMuscleForExercise(name);
-      return selectedMuscles.includes(exMuscle);
-    })
-    .map(ex => {
-      const name = ex.name || ex.name_raw;
-      if (isCardioEx(name) || ex.type === 'cardio') {
-        return { name, muscle: 'Cardio', type: 'cardio', duration_min: ex.duration_min || 0, sets: [], loaded: true };
+      if (!name || ex.type === 'warmup') return;
+      const nameLow = name.toLowerCase();
+      if ((ex.type === 'cardio' || isCardioEx(nameLow) || COMMON_EXERCISES.has(nameLow)) && !seenNames.has(nameLow)) {
+        seenNames.add(nameLow);
+        merged.push(mapEx(ex));
       }
-      return {
-        name, loaded: true,
-        muscle: ex.muscle || inferMuscleForExercise(name),
-        sets: getSets(ex).map(s => ({ kg: s.kg || s.weight || '', reps: s.reps || '' }))
-      };
     });
+  }
+
+  // Then: per-muscle exercises from each muscle's own last session
+  selectedMuscles.forEach(m => {
+    const wo = muscleLastWorkout[m];
+    if (!wo) return;
+    wo.exercises.forEach(ex => {
+      const name = (ex.name || ex.name_raw || '');
+      if (!name || ex.type === 'warmup') return;
+      const nameLow = name.toLowerCase();
+      if (seenNames.has(nameLow)) return;
+      const exMuscle = ex.muscle || inferMuscleForExercise(name);
+      if (exMuscle === m) {
+        seenNames.add(nameLow);
+        merged.push(mapEx(ex));
+      }
+    });
+  });
+
+  currentExercises = merged;
   assignMusclesToExercises();
   renderExercises();
   document.getElementById('last-workout-banner').style.display = 'none';
