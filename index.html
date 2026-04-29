@@ -1690,21 +1690,62 @@ function showPage(name) {
 
 function updateStreak() {
   if (workouts.length === 0) return;
-  const dates = [...new Set(workouts.map(w => w.date))].sort().reverse();
-  const today = new Date().toISOString().slice(0,10);
-  const yesterday = new Date(Date.now()-86400000).toISOString().slice(0,10);
-  let streak = 0;
-  let checkDate = (dates[0] === today || dates[0] === yesterday) ? new Date(dates[0]) : null;
-  if (!checkDate) return;
-  const datesSet = new Set(dates);
-  while (true) {
-    const ds = checkDate.toISOString().slice(0,10);
-    if (datesSet.has(ds)) { streak++; checkDate.setDate(checkDate.getDate()-1); }
-    else break;
+
+  function getWeekKey(dateStr) {
+    const d = new Date(dateStr + 'T12:00:00');
+    const day = d.getDay() || 7;
+    const mon = new Date(d);
+    mon.setDate(d.getDate() - (day - 1));
+    return mon.toISOString().slice(0, 10);
   }
-  if (streak >= 2) {
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayWeek = getWeekKey(todayStr);
+
+  // Active workout days only (skip rest days)
+  const activeDates = [...new Set(
+    workouts.filter(w => w.exercises && w.exercises.length > 0).map(w => w.date)
+  )].sort();
+
+  if (activeDates.length === 0) return;
+
+  // Count sessions per week
+  const weekMap = {};
+  activeDates.forEach(d => {
+    const wk = getWeekKey(d);
+    weekMap[wk] = (weekMap[wk] || 0) + 1;
+  });
+
+  // Walk backwards week-by-week from current week.
+  // Current week is always alive (still in progress).
+  // Past weeks must have 4+ sessions — if not, streak breaks there.
+  // streakDays = total active workout days across all alive weeks.
+  let streakDays = 0;
+  let checkWeek = todayWeek;
+  const oldestDate = activeDates[0];
+
+  while (checkWeek >= oldestDate.slice(0, 10)) {
+    const count = weekMap[checkWeek] || 0;
+    const isCurrentWeek = checkWeek === todayWeek;
+
+    if (isCurrentWeek) {
+      streakDays += count; // current week always counts (in progress)
+    } else if (count >= 3) {
+      streakDays += count; // past week qualifies
+    } else {
+      break; // streak broken
+    }
+
+    const d = new Date(checkWeek + 'T12:00:00');
+    d.setDate(d.getDate() - 7);
+    checkWeek = d.toISOString().slice(0, 10);
+  }
+
+  if (streakDays >= 1) {
     const el = document.getElementById('streak-badge');
-    el.textContent = `🔥 ${streak}d`;
+    const thisWeekCount = weekMap[todayWeek] || 0;
+    el.textContent = '\uD83D\uDD25 ' + streakDays;
+    el.title = streakDays + ' active days in streak' + (thisWeekCount < 3 ? ' (' + thisWeekCount + '/3 this week)' : ' \u2713');
     el.style.display = 'block';
   }
 }
@@ -1801,9 +1842,32 @@ function toggleMuscle(m) {
 function checkLastWorkoutBanner() {
   const banner = document.getElementById('last-workout-banner');
   if (selectedMuscles.length === 0) { banner.style.display = 'none'; return; }
+
+  // Find the most recent workout that has ANY of the selected muscles
   const matching = workouts.filter(w => w.muscles.some(m => selectedMuscles.includes(m)));
   if (matching.length === 0) { banner.style.display = 'none'; return; }
   const last = matching[0];
+
+  // COMMON exercises that always load regardless of muscle filter
+  const COMMON_EXERCISES = new Set([
+    'cardio','cycling','walking','treadmill','incline walking','running',
+    'warm up','warmup','pull ups','pullups','dead hang','dead hangs',
+    'scapular pull ups','scapular pull','hyperextensions','stretching'
+  ]);
+
+  // Only show exercises that belong to the selected muscles OR are common/cardio
+  const relevantExercises = last.exercises.filter(ex => {
+    const name = (ex.name || ex.name_raw || '').toLowerCase();
+    if (ex.type === 'warmup') return false; // skip warmup entry
+    if (ex.type === 'cardio' || isCardioEx(name)) return true; // cardio always included
+    if (COMMON_EXERCISES.has(name)) return true;
+    // Include if exercise's muscle matches any selected muscle
+    const exMuscle = ex.muscle || inferMuscleForExercise(ex.name || ex.name_raw || '');
+    return selectedMuscles.includes(exMuscle);
+  });
+
+  if (relevantExercises.length === 0) { banner.style.display = 'none'; return; }
+
   banner.style.display = 'block';
   banner.innerHTML = `
     <div class="last-workout-banner">
@@ -1812,9 +1876,9 @@ function checkLastWorkoutBanner() {
         <div class="lwb-date">${formatDateShort(last.date)}</div>
       </div>
       <div class="lwb-exercises">
-        ${last.exercises.map(e => `<div class="lwb-ex-pill">${e.name||e.name_raw||''}</div>`).join('')}
+        ${relevantExercises.map(e => `<div class="lwb-ex-pill">${e.name||e.name_raw||''}</div>`).join('')}
       </div>
-      <button class="load-last-btn" onclick="loadLastWorkout(${last.id})">Load last session →</button>
+      <button class="load-last-btn" onclick="loadLastWorkoutFiltered(${last.id})">Load last session →</button>
     </div>`;
 }
 
@@ -1823,6 +1887,42 @@ function loadLastWorkout(id) {
   if (!last) return;
   currentExercises = last.exercises
     .filter(ex => (ex.name || ex.name_raw) && ex.type !== 'warmup')
+    .map(ex => {
+      const name = ex.name || ex.name_raw;
+      if (isCardioEx(name) || ex.type === 'cardio') {
+        return { name, muscle: 'Cardio', type: 'cardio', duration_min: ex.duration_min || 0, sets: [], loaded: true };
+      }
+      return {
+        name, loaded: true,
+        muscle: ex.muscle || inferMuscleForExercise(name),
+        sets: getSets(ex).map(s => ({ kg: s.kg || s.weight || '', reps: s.reps || '' }))
+      };
+    });
+  assignMusclesToExercises();
+  renderExercises();
+  document.getElementById('last-workout-banner').style.display = 'none';
+  document.getElementById('exercise-list').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// Filtered version: only loads exercises matching selected muscles (+ common/cardio)
+function loadLastWorkoutFiltered(id) {
+  const last = workouts.find(w => w.id === id);
+  if (!last) return;
+  const COMMON_EXERCISES = new Set([
+    'cardio','cycling','walking','treadmill','incline walking','running',
+    'warm up','warmup','pull ups','pullups','dead hang','dead hangs',
+    'scapular pull ups','scapular pull','hyperextensions','stretching'
+  ]);
+  currentExercises = last.exercises
+    .filter(ex => {
+      const name = (ex.name || ex.name_raw || '');
+      if (!name) return false;
+      if (ex.type === 'warmup') return false;
+      if (ex.type === 'cardio' || isCardioEx(name)) return true;
+      if (COMMON_EXERCISES.has(name.toLowerCase())) return true;
+      const exMuscle = ex.muscle || inferMuscleForExercise(name);
+      return selectedMuscles.includes(exMuscle);
+    })
     .map(ex => {
       const name = ex.name || ex.name_raw;
       if (isCardioEx(name) || ex.type === 'cardio') {
@@ -2245,46 +2345,62 @@ async function deleteWorkout(id) {
 
 // ── PRs ────────────────────────────────────────────────────────────────────
 function renderPRs() {
-  const allExercises = [...new Set(workouts.flatMap(w => w.exercises.map(e => e.name)))].sort();
-  const muscles = [...new Set(workouts.flatMap(w => w.muscles))];
-  document.getElementById('pr-filters').innerHTML = ['all', ...muscles].map(m =>
+  // Build muscle list from individual exercise muscles (not workout-level muscles)
+  const allExMuscles = [...new Set(
+    workouts.flatMap(w => w.exercises.map(ex => ex.muscle || inferMuscleForExercise(ex.name || ex.name_raw || '')))
+      .filter(Boolean)
+  )].sort();
+
+  document.getElementById('pr-filters').innerHTML = ['all', ...allExMuscles].map(m =>
     `<button class="filter-chip${prFilter===m?' active':''}" onclick="setPRFilter('${m}')">${m.toUpperCase()}</button>`
   ).join('');
 
   const list = document.getElementById('pr-list');
-  if (allExercises.length === 0) {
+
+  // Collect all exercises, filtered by their OWN muscle tag
+  const exMap = {};
+  workouts.forEach(w => {
+    w.exercises.forEach(ex => {
+      const name = ex.name || ex.name_raw;
+      if (!name) return;
+      const exMuscle = ex.muscle || inferMuscleForExercise(name);
+      // Apply PR filter: skip if filter is active and exercise muscle doesn't match
+      if (prFilter !== 'all' && exMuscle !== prFilter) return;
+      if (!exMap[name]) exMap[name] = { name, muscle: exMuscle, maxKg: 0, maxKgReps: 0, maxKgDate: '' };
+      getSets(ex).forEach(s => {
+        const kg = parseFloat(s.kg) || parseFloat(s.weight) || 0;
+        const reps = s.reps || 0;
+        // PR = heaviest weight; ties broken by reps on that same day
+        if (kg > exMap[name].maxKg || (kg === exMap[name].maxKg && reps > exMap[name].maxKgReps)) {
+          exMap[name].maxKg = kg;
+          exMap[name].maxKgReps = reps;
+          exMap[name].maxKgDate = w.date;
+        }
+      });
+    });
+  });
+
+  const exercises = Object.values(exMap).filter(e => e.maxKg > 0).sort((a,b) => a.name.localeCompare(b.name));
+
+  if (exercises.length === 0) {
     list.innerHTML = `<div class="empty-state"><div class="empty-icon">🏆</div>Log workouts to see PRs!</div>`;
     return;
   }
 
-  const filteredWorkouts = prFilter === 'all' ? workouts : workouts.filter(w => w.muscles.includes(prFilter));
-  const filteredExercises = [...new Set(filteredWorkouts.flatMap(w => w.exercises.map(e => e.name)))].sort();
-
-  list.innerHTML = filteredExercises.map(exName => {
-    let maxKg = 0, maxReps = 0, maxVol = 0;
-    let maxKgDate = '', maxRepsDate = '', maxVolDate = '';
-    let exMuscle = null;
-    workouts.forEach(w => {
-      w.exercises.filter(e => e.name === exName).forEach(ex => {
-        if (!exMuscle) exMuscle = ex.muscle || inferMuscleForExercise(ex.name);
-        getSets(ex).forEach(s => {
-          const kg = parseFloat(s.kg)||parseFloat(s.weight)||0;
-          if (kg > maxKg) { maxKg = kg; maxKgDate = w.date; }
-          if ((s.reps||0) > maxReps) { maxReps = s.reps||0; maxRepsDate = w.date; }
-        });
-        const vol = getSets(ex).reduce((a,s) => a+((parseFloat(s.kg)||parseFloat(s.weight)||0)*(s.reps||0)),0);
-        if (vol > maxVol) { maxVol = vol; maxVolDate = w.date; }
-      });
-    });
-    if (maxKg === 0 && maxReps === 0) return '';
-    const musTag = exMuscle ? `<span class="ex-muscle-tag ${exMuscle}" style="font-size:8px">${exMuscle.toUpperCase()}</span>` : '';
+  list.innerHTML = exercises.map(e => {
+    const musTag = e.muscle ? `<span class="ex-muscle-tag ${e.muscle}" style="font-size:8px">${e.muscle.toUpperCase()}</span>` : '';
     return `<div class="pr-card">
-      <div class="pr-ex-name">${exName} ${musTag}</div>
-      <div class="pr-row"><span class="pr-label">Heaviest weight</span><span class="pr-val">${maxKg} kg <span class="pr-badge">${formatDateShort(maxKgDate)}</span></span></div>
-      <div class="pr-row"><span class="pr-label">Most reps (single set)</span><span class="pr-val">${maxReps} reps <span class="pr-badge">${formatDateShort(maxRepsDate)}</span></span></div>
-      <div class="pr-row"><span class="pr-label">Best session volume</span><span class="pr-val">${Math.round(maxVol).toLocaleString()} kg</span></div>
+      <div class="pr-ex-name">${e.name} ${musTag}</div>
+      <div class="pr-row">
+        <span class="pr-label">Heaviest weight</span>
+        <span class="pr-val">${e.maxKg} kg <span class="pr-badge">${formatDateShort(e.maxKgDate)}</span></span>
+      </div>
+      <div class="pr-row">
+        <span class="pr-label">Reps at heaviest weight</span>
+        <span class="pr-val">${e.maxKgReps} reps</span>
+      </div>
     </div>`;
-  }).filter(Boolean).join('');
+  }).join('');
 }
 function setPRFilter(f) { prFilter = f; renderPRs(); }
 
@@ -2298,7 +2414,10 @@ function renderStats() {
 
   const totalWorkouts = workouts.length;
   const totalVol = workouts.reduce((a,w) => a+w.exercises.reduce((b,e)=>b+getSets(e).reduce((c,s)=>c+((parseFloat(s.kg)||0)*(s.reps||0)),0),0),0);
-  const avgDur = Math.round(workouts.reduce((a,w)=>a+w.duration,0)/workouts.length);
+  const activeSessions = workouts.filter(w => w.exercises && w.exercises.length > 0 && parseInt(w.duration) > 0);
+  const avgDur = activeSessions.length > 0
+    ? Math.round(activeSessions.reduce((a,w) => a + parseInt(w.duration), 0) / activeSessions.length)
+    : 0;
   const totalSets = workouts.reduce((a,w)=>a+w.exercises.reduce((b,e)=>b+getSets(e).length,0),0);
   const last7 = workouts.filter(w => (new Date()-new Date(w.date))/(86400000) <= 7).length;
   const last30 = workouts.filter(w => (new Date()-new Date(w.date))/(86400000) <= 30).length;
