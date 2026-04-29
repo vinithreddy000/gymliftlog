@@ -1573,11 +1573,12 @@ async function dbInsertOne(workout) {
   const nextId = await dbGetNextId();
   // Keep workout_data id in sync with table id
   const workoutWithId = { ...workout, id: nextId };
+  const created_at = new Date().toISOString();
   const row = {
     id: nextId,
     workout_date: workout.date,
     workout_data: workoutWithId,
-    created_at: new Date().toISOString(),
+    created_at,
     user_id: userId
   };
   await dbFetch('/rest/v1/workouts', {
@@ -1585,7 +1586,7 @@ async function dbInsertOne(workout) {
     headers: { 'Prefer': 'return=minimal' },
     body: JSON.stringify(row)
   });
-  return nextId;
+  return { id: nextId, created_at };
 }
 
 async function dbDelete(workout_date, created_at) {
@@ -2375,8 +2376,9 @@ async function saveWorkout() {
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'SAVING...'; }
 
   try {
-    const assignedId = await dbInsertOne(workout);
+    const { id: assignedId, created_at } = await dbInsertOne(workout);
     workout.id = assignedId;
+    workout._created_at = created_at;
     setSyncBadge('online');
   } catch(e) {
     console.error('Supabase insert error:', e.message || e);
