@@ -1555,18 +1555,20 @@ function onLoginSuccess() {
 
 // ── DATA FUNCTIONS (user-scoped) ──────────────────────────────────────────
 async function dbLoad() {
-  const res = await dbFetch('/rest/v1/workouts?select=workout_data&order=created_at.desc');
+  // Order by workout_date so order is stable and correct regardless of insert time
+  const res = await dbFetch('/rest/v1/workouts?select=workout_data&order=workout_date.desc');
   return res.json();
 }
 
-async function dbUpsert(rows) {
-  if (!rows.length) return;
-  const dateList = rows.map(r => r.workout_date).join(',');
-  await dbFetch('/rest/v1/workouts?workout_date=in.(' + dateList + ')', { method: 'DELETE' });
+// Upsert a SINGLE workout row — never touches other rows so id/created_at are preserved
+async function dbUpsertOne(row) {
   await dbFetch('/rest/v1/workouts', {
     method: 'POST',
-    headers: { 'Prefer': 'return=minimal' },
-    body: JSON.stringify(rows)
+    headers: {
+      'Prefer': 'resolution=merge-duplicates,return=minimal',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(row)
   });
 }
 
@@ -1659,17 +1661,21 @@ async function init() {
   showAuthScreen();
 }
 
-async function save() {
+// Save a single workout to cloud — never rewrites the whole table
+async function saveWorkoutToCloud(workout) {
+  const userId = currentSession?.user?.id;
+  const row = {
+    workout_date: workout.date,
+    workout_data: workout,
+    ...(userId ? { user_id: userId } : {})
+  };
+  await dbUpsertOne(row);
+}
+
+async function save(changedWorkout) {
   localStorage.setItem('liftlog_workouts', JSON.stringify(workouts));
   try {
-    const userId = currentSession?.user?.id;
-    const rows = workouts.map(w => ({
-      workout_date: w.date,
-      workout_data: w,
-      created_at: new Date().toISOString(),
-      ...(userId ? { user_id: userId } : {})
-    }));
-    await dbUpsert(rows);
+    if (changedWorkout) await saveWorkoutToCloud(changedWorkout);
     setSyncBadge('online');
   } catch(e) {
     console.error('Supabase save error:', e.message || e);
