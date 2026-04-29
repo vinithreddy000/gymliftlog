@@ -1722,9 +1722,9 @@ function updateStreak() {
   // streakDays = total active workout days across all alive weeks.
   let streakDays = 0;
   let checkWeek = todayWeek;
-  const oldestDate = activeDates[0];
+  const oldestWeek = getWeekKey(activeDates[0]);
 
-  while (checkWeek >= oldestDate.slice(0, 10)) {
+  while (checkWeek >= oldestWeek) {
     const count = weekMap[checkWeek] || 0;
     const isCurrentWeek = checkWeek === todayWeek;
 
