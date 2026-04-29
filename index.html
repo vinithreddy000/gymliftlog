@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>LIFTLOG</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -828,6 +827,12 @@ input::placeholder { color: var(--text3); }
     <div class="section-label" id="exercises-label">Exercises</div>
     <div class="exercise-list" id="exercise-list"></div>
 
+    <div style="display:flex;gap:6px;flex-wrap:wrap;padding:4px 0 2px">
+      <span style="font-size:9px;color:var(--text3);letter-spacing:1px;align-self:center">QUICK ADD:</span>
+      <button class="filter-chip" onclick="addExercise('Cycling')" style="font-size:9px;padding:3px 8px">🚴 Cycling</button>
+      <button class="filter-chip" onclick="addExercise('Treadmill')" style="font-size:9px;padding:3px 8px">🏃 Treadmill</button>
+      <button class="filter-chip" onclick="addExercise('Incline Walking')" style="font-size:9px;padding:3px 8px">⛰ Incline Walk</button>
+    </div>
     <div class="add-ex-row">
       <input type="text" id="new-ex-name" placeholder="Add exercise..." onkeydown="if(event.key==='Enter')addExercise()">
       <button class="btn btn-primary" onclick="addExercise()">+ ADD</button>
@@ -1114,15 +1119,29 @@ async function dbDelete(workout_date) {
   await dbFetch('/rest/v1/workouts?workout_date=eq.' + encodeURIComponent(workout_date), { method: 'DELETE' });
 }
 
-async function dbPing() {
-  // Any HTTP response (even 401) = server is reachable
-  try {
-    await fetch(SUPABASE_URL + '/rest/v1/', { ...FETCH_OPTS, headers: DB_HEADERS });
-    return true;
-  } catch { return false; }
-}
-
 // ── INIT ────────────────────────────────────────────────────────────────────
+// ── DATA HELPERS ─────────────────────────────────────────────────────────────
+function normaliseWorkout(w) {
+  if (!w) return w;
+  w.exercises = (w.exercises || []).map(ex => {
+    if (!ex.name && ex.name_raw) ex.name = ex.name_raw;
+    if (!ex.sets) ex.sets = [];
+    ex.sets = ex.sets.map(s => {
+      if (s.weight !== undefined && s.kg === undefined) s.kg = parseFloat(s.weight) || 0;
+      return s;
+    });
+    return ex;
+  });
+  return w;
+}
+function getSets(ex) { return ex.sets || []; }
+const CARDIO_NAMES = new Set([
+  'cycling','treadmill','incline walking','walking','running',
+  'elliptical','elliptical cross trainer','rowing','skipping','jump rope',
+  'stair climber','warm up','cool down','stretching'
+]);
+function isCardioEx(name) { return CARDIO_NAMES.has((name||'').toLowerCase()); }
+
 function setSyncBadge(state, msg) {
   const el = document.getElementById('sync-badge');
   if (!el) return;
@@ -1135,31 +1154,25 @@ function setSyncBadge(state, msg) {
 async function init() {
   // Always load localStorage first (instant)
   const saved = localStorage.getItem('liftlog_workouts');
-  if (saved) { try { workouts = JSON.parse(saved); } catch(e) {} }
+  if (saved) { try { workouts = JSON.parse(saved).map(normaliseWorkout); } catch(e) {} }
 
-  // Then try to sync from Supabase
-  const reachable = await dbPing();
-  if (!reachable) {
-    console.warn('Supabase unreachable — CORS or network issue. If opening as file://, add "null" to Supabase allowed origins (Dashboard → Settings → API).');
-    setSyncBadge('offline');
-  } else {
-    try {
-      const rows = await dbLoad();
-      if (rows && rows.length > 0) {
-        const cloudWorkouts = rows.map(r => r.workout_data);
-        const cloudDates = new Set(cloudWorkouts.map(w => w.date));
-        const merged = [...cloudWorkouts, ...workouts.filter(w => !cloudDates.has(w.date))];
-        workouts = merged;
-        localStorage.setItem('liftlog_workouts', JSON.stringify(workouts));
-        updateStreak();
-        renderMuscleGrid();
-        renderExercises();
-      }
-      setSyncBadge('online');
-    } catch(e) {
-      console.warn('Supabase sync failed:', e.message || e);
-      setSyncBadge('error', e.message);
+  // Sync from Supabase
+  try {
+    const rows = await dbLoad();
+    if (rows && rows.length > 0) {
+      const cloudWorkouts = rows.map(r => normaliseWorkout(r.workout_data));
+      const cloudDates = new Set(cloudWorkouts.map(w => w.date));
+      const merged = [...cloudWorkouts, ...workouts.filter(w => !cloudDates.has(w.date))];
+      workouts = merged;
+      localStorage.setItem('liftlog_workouts', JSON.stringify(workouts));
+      updateStreak();
+      renderMuscleGrid();
+      renderExercises();
     }
+    setSyncBadge('online');
+  } catch(e) {
+    console.warn('Supabase sync failed:', e.message || e);
+    setSyncBadge('offline');
   }
 
   const now = new Date();
@@ -1320,7 +1333,7 @@ function checkLastWorkoutBanner() {
         <div class="lwb-date">${formatDateShort(last.date)}</div>
       </div>
       <div class="lwb-exercises">
-        ${last.exercises.map(e => `<div class="lwb-ex-pill">${e.name}</div>`).join('')}
+        ${last.exercises.map(e => `<div class="lwb-ex-pill">${e.name||e.name_raw||''}</div>`).join('')}
       </div>
       <button class="load-last-btn" onclick="loadLastWorkout(${last.id})">Load last session →</button>
     </div>`;
@@ -1329,12 +1342,19 @@ function checkLastWorkoutBanner() {
 function loadLastWorkout(id) {
   const last = workouts.find(w => w.id === id);
   if (!last) return;
-  currentExercises = last.exercises.map(ex => ({
-    name: ex.name,
-    muscle: ex.muscle || inferMuscleForExercise(ex.name),
-    loaded: true,
-    sets: ex.sets.map(s => ({kg: s.kg, reps: s.reps}))
-  }));
+  currentExercises = last.exercises
+    .filter(ex => (ex.name || ex.name_raw) && ex.type !== 'warmup')
+    .map(ex => {
+      const name = ex.name || ex.name_raw;
+      if (isCardioEx(name) || ex.type === 'cardio') {
+        return { name, muscle: 'Cardio', type: 'cardio', duration_min: ex.duration_min || 0, sets: [], loaded: true };
+      }
+      return {
+        name, loaded: true,
+        muscle: ex.muscle || inferMuscleForExercise(name),
+        sets: getSets(ex).map(s => ({ kg: s.kg || s.weight || '', reps: s.reps || '' }))
+      };
+    });
   assignMusclesToExercises();
   renderExercises();
   document.getElementById('last-workout-banner').style.display = 'none';
@@ -1381,48 +1401,50 @@ function renderExercises() {
     const muscle = ex.muscle || null;
     const muscleTag = muscle ? `<span class="ex-muscle-tag ${muscle}">${muscle.toUpperCase()}</span>` : '';
     const loadedBadge = ex.loaded ? '<span class="loaded-badge">LOADED</span>' : '';
-
-    // Check if this exercise has alternatives (for swap button visibility)
     const hasAlts = muscle !== null;
-
-    // Check for PR possibility
     const prLabel = getPRIndicator(ex);
+    const cardio = isCardioEx(ex.name) || ex.type === 'cardio';
+
+    const body = cardio ? `
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 10px">
+        <span style="color:var(--text2);font-size:11px;letter-spacing:1px">DURATION</span>
+        <input type="number" value="${ex.duration_min||''}" placeholder="0" min="0" max="300"
+          style="width:70px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:inherit;font-size:16px;padding:6px 8px;border-radius:6px;text-align:center"
+          oninput="updateCardio(${ei},this.value)" onfocus="this.select()">
+        <span style="color:var(--text3);font-size:11px">min</span>
+      </div>` : `
+      <table class="sets-table">
+        <tr>
+          <th style="width:22px">#</th><th>KG</th><th>REPS</th>
+          <th style="width:38px;text-align:center">VOL</th><th style="width:20px"></th>
+        </tr>
+        ${getSets(ex).map((s,si) => {
+          const vol = s.kg && s.reps ? Math.round((parseFloat(s.kg)||0) * (s.reps||0)) : '';
+          const isPR = checkIfPRSet(ex.name, s.kg, s.reps);
+          return `<tr${isPR?' style="background:rgba(255,224,51,0.04)"':''}>
+            <td style="color:var(--text3);font-size:10px;padding:3px 6px">${si+1}</td>
+            <td><input type="number" value="${s.kg||''}" placeholder="0" min="0" step="0.5" oninput="updateSet(${ei},${si},'kg',this.value)" onfocus="this.select()"></td>
+            <td><input type="number" value="${s.reps||''}" placeholder="0" min="0" oninput="updateSet(${ei},${si},'reps',this.value)" onfocus="this.select()"></td>
+            <td class="set-vol">${vol ? vol+'kg' : '—'}</td>
+            <td><button class="del-btn" style="font-size:11px" onclick="removeSet(${ei},${si})">✕</button></td>
+          </tr>`;
+        }).join('')}
+      </table>
+      <button class="add-set-btn" onclick="addSet(${ei})">+ add set</button>`;
 
     return `
     <div class="ex-card" id="ex-card-${ei}">
       <div class="ex-header">
         <div class="ex-header-left">
           <span class="ex-name">${ex.name}</span>
-          ${muscleTag}
-          ${loadedBadge}
-          ${prLabel}
+          ${muscleTag}${loadedBadge}${prLabel}
         </div>
         <div class="ex-header-right">
-          ${hasAlts ? `<button class="inline-swap-btn" onclick="openSwapModal(${ei},'${escapeAttr(ex.name)}')">⇄ SWAP</button>` : ''}
+          ${hasAlts && !cardio ? `<button class="inline-swap-btn" onclick="openSwapModal(${ei},'${escapeAttr(ex.name)}')">⇄ SWAP</button>` : ''}
           <button class="del-btn" onclick="removeExercise(${ei})">✕</button>
         </div>
       </div>
-      <table class="sets-table">
-        <tr>
-          <th style="width:22px">#</th>
-          <th>KG</th>
-          <th>REPS</th>
-          <th style="width:38px;text-align:center">VOL</th>
-          <th style="width:20px"></th>
-        </tr>
-        ${ex.sets.map((s,si) => {
-          const vol = s.kg && s.reps ? Math.round((parseFloat(s.weight) || 0) * (s.reps || 0)) : '';
-          const isPR = checkIfPRSet(ex.name, s.kg, s.reps);
-          return `<tr${isPR?' style="background:rgba(255,224,51,0.04)"':''}>
-            <td style="color:var(--text3);font-size:10px;padding:3px 6px">${si+1}</td>
-            <td><input type="number" value="${s.kg||''}" placeholder="0" min="0" step="0.5" oninput="updateSet(${ei},${si},'kg',this.value)"></td>
-            <td><input type="number" value="${s.reps||''}" placeholder="0" min="0" oninput="updateSet(${ei},${si},'reps',this.value)"></td>
-            <td class="set-vol">${vol ? vol+'kg' : '—'}</td>
-            <td><button class="del-btn" style="font-size:11px" onclick="removeSet(${ei},${si})">✕</button></td>
-          </tr>`;
-        }).join('')}
-      </table>
-      <button class="add-set-btn" onclick="addSet(${ei})">+ add set</button>
+      ${body}
     </div>`;
   }).join('');
 }
@@ -1433,11 +1455,11 @@ function getPRIndicator(ex) {
   let maxKg = 0;
   workouts.forEach(w => {
     w.exercises.filter(e => e.name === ex.name).forEach(e => {
-      e.sets.forEach(s => { if (s.kg > maxKg) maxKg = s.kg; });
+      getSets(e).forEach(s => { const kg=parseFloat(s.kg)||parseFloat(s.weight)||0; if (kg > maxKg) maxKg = kg; });
     });
   });
   if (maxKg === 0) return '';
-  const currentMax = Math.max(...ex.sets.filter(s => s.kg).map(s => s.kg || 0), 0);
+  const currentMax = Math.max(...getSets(ex).filter(s => s.kg).map(s => parseFloat(s.kg)||0), 0);
   if (currentMax >= maxKg) return '<span class="pr-indicator">🏆 PR?</span>';
   return '';
 }
@@ -1447,25 +1469,31 @@ function checkIfPRSet(exName, kg, reps) {
   let maxKg = 0;
   workouts.forEach(w => {
     w.exercises.filter(e => e.name === exName).forEach(e => {
-      e.sets.forEach(s => { if (s.kg > maxKg) maxKg = s.kg; });
+      getSets(e).forEach(s => { const kg=parseFloat(s.kg)||parseFloat(s.weight)||0; if (kg > maxKg) maxKg = kg; });
     });
   });
   return maxKg > 0 && kg > maxKg;
 }
 
-function addExercise() {
+function addExercise(forceName) {
   const inp = document.getElementById('new-ex-name');
-  const name = inp.value.trim();
+  const name = forceName || inp.value.trim();
   if (!name) return;
-  const muscle = inferMuscleForExercise(name) || (selectedMuscles.length === 1 ? selectedMuscles[0] : null);
-  currentExercises.push({ name, muscle, sets: [{kg:'',reps:''}] });
-  inp.value = '';
+  if (isCardioEx(name)) {
+    currentExercises.push({ name, muscle: 'Cardio', type: 'cardio', duration_min: 0, sets: [] });
+  } else {
+    const muscle = inferMuscleForExercise(name) || (selectedMuscles.length === 1 ? selectedMuscles[0] : null);
+    currentExercises.push({ name, muscle, sets: [{kg:'',reps:''}] });
+  }
+  if (!forceName) inp.value = '';
   renderExercises();
+  setTimeout(() => { const c = document.querySelectorAll('.ex-card'); if(c.length) c[c.length-1].scrollIntoView({behavior:'smooth',block:'nearest'}); }, 50);
 }
 
 function removeExercise(i) { currentExercises.splice(i,1); renderExercises(); }
 function addSet(ei) { currentExercises[ei].sets.push({kg:'',reps:''}); renderExercises(); }
-function removeSet(ei, si) { if (currentExercises[ei].sets.length > 1) { currentExercises[ei].sets.splice(si,1); renderExercises(); } }
+function removeSet(ei, si) { if (getSets(currentExercises[ei]).length > 1) { currentExercises[ei].sets.splice(si,1); renderExercises(); } }
+function updateCardio(ei, val) { currentExercises[ei].duration_min = parseInt(val) || 0; }
 function updateSet(ei, si, field, val) {
   currentExercises[ei].sets[si][field] = parseFloat(val) || 0;
 
@@ -1474,7 +1502,7 @@ function updateSet(ei, si, field, val) {
   if (!card) return;
 
   const s = currentExercises[ei].sets[si];
-  const vol = s.kg && s.reps ? Math.round((parseFloat(s.weight) || 0) * (s.reps || 0)) : '';
+  const vol = s.kg && s.reps ? Math.round((parseFloat(s.kg) || 0) * (s.reps || 0)) : '';
 
   // table rows: row 0 = header, rows 1+ = set data
   const rows = card.querySelectorAll('table tr');
@@ -1518,9 +1546,9 @@ function openSwapModal(exIndex, exName) {
     html += `<div class="swap-section-hdr">From your workout history</div>`;
     html += fromHistory.slice(0, 8).map(alt => {
       const lastSession = alt.sessions[alt.sessions.length - 1];
-      const setsSummary = lastSession.sets.slice(0,3).map(s => `${s.kg}kg×${s.reps}`).join(', ');
+      const setsSummary = getSets(lastSession).slice(0,3).map(s => `${parseFloat(s.kg)||0}kg×${s.reps||0}`).join(', ');
       const lastDate = formatDateShort(lastSession.date);
-      const setsData = JSON.stringify(lastSession.sets);
+      const setsData = JSON.stringify(getSets(lastSession));
       return `
         <div class="swap-modal-ex" onclick="confirmSwap('${escapeAttr(alt.name)}', ${escapeJson(setsData)})">
           <div class="swap-modal-ex-name">
@@ -1599,11 +1627,18 @@ function saveWorkout() {
     date: now.toISOString().slice(0,10),
     inTime, outTime: finalOut, duration, warmup,
     muscles: [...selectedMuscles],
-    exercises: currentExercises.map(ex => ({
-      name: ex.name,
-      muscle: ex.muscle || inferMuscleForExercise(ex.name) || null,
-      sets: ex.sets.map(s => ({...s}))
-    })),
+    exercises: currentExercises
+      .filter(ex => isCardioEx(ex.name)||ex.type==='cardio' ? (ex.duration_min||0)>0 : getSets(ex).some(s=>s.reps||s.kg))
+      .map(ex => {
+        if (isCardioEx(ex.name) || ex.type === 'cardio') {
+          return { name: ex.name, type: 'cardio', duration_min: ex.duration_min||0, muscle: 'Cardio' };
+        }
+        return {
+          name: ex.name,
+          muscle: ex.muscle || inferMuscleForExercise(ex.name) || null,
+          sets: getSets(ex).filter(s=>s.reps||s.kg).map(s=>({...s}))
+        };
+      }),
     notes
   };
 
@@ -1663,17 +1698,11 @@ function renderHistory() {
     return `
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--text3);text-transform:uppercase;margin:12px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)">${label} <span style="color:var(--text3);font-weight:400">(${ws.length})</span></div>
       ${ws.map(w => {
-        const totalSets = w.exercises.reduce((a, e) => {
-            return a + (e.sets?.length ?? 0);}, 0);
-
-        const totalVol = w.exercises.reduce((a, e) => {
-          if (!e.sets) return a;
-          return a + e.sets.reduce((b, s) => {
-            const w = parseFloat(s.weight);
-            if (isNaN(w) || !s.reps) return b;
-            return b + (w * s.reps);
-            }, 0);
-          }, 0);
+        const totalSets = w.exercises.reduce((a,e) => a + getSets(e).length, 0);
+        const totalVol = w.exercises.reduce((a,e) => a + getSets(e).reduce((b,s) => {
+          const kg = parseFloat(s.kg)||parseFloat(s.weight)||0;
+          return b + (kg * (s.reps||0));
+        }, 0), 0);
         return `<div class="workout-item" onclick="viewWorkout(${w.id})">
           <div class="workout-item-header">
             <div class="workout-date">${formatDate(w.date)}</div>
@@ -1695,7 +1724,7 @@ function setHistoryFilter(f) { historyFilter = f; renderHistory(); }
 function viewWorkout(id) { viewingWorkout = workouts.find(w => w.id === id); renderHistory(); }
 
 function renderWorkoutDetail(w) {
-  const totalVol = w.exercises.reduce((a,e) => a+e.sets.reduce((b,s) => b+(s.kg*s.reps||0),0),0);
+  const totalVol = w.exercises.reduce((a,e) => a+getSets(e).reduce((b,s) => b+((parseFloat(s.kg)||0)*(s.reps||0)),0),0);
   document.getElementById('history-list').innerHTML = `
     <button class="back-btn" onclick="viewingWorkout=null;renderHistory()">← Back to History</button>
     <div style="margin-bottom:14px">
@@ -1705,17 +1734,18 @@ function renderWorkoutDetail(w) {
     </div>
     ${w.exercises.map(ex => {
       const musTag = (ex.muscle) ? `<span class="ex-muscle-tag ${ex.muscle}">${ex.muscle.toUpperCase()}</span>` : '';
-      const bestSet = ex.sets.reduce((a,s) => (s.kg > a.kg ? s : a), {kg:0,reps:0});
+      const bestSet = getSets(ex).reduce((a,s)=>((parseFloat(s.kg)||0)>(parseFloat(a.kg)||0)?s:a),{kg:0,reps:0});
       return `<div class="workout-detail">
         <div class="detail-ex-name">${ex.name} ${musTag}</div>
-        ${ex.sets.map((s,i) => `<div class="detail-sets">Set ${i+1}: <span>${s.kg}kg × ${s.reps}</span> <span style="color:var(--text3);font-size:10px">(${Math.round(s.kg*s.reps)}kg)</span></div>`).join('')}
-        <div style="font-size:10px;color:var(--text3);margin-top:6px">Best: ${bestSet.kg}kg×${bestSet.reps} · Vol: ${Math.round(ex.sets.reduce((a,s)=>a+(s.kg*s.reps||0),0))}kg</div>
+        ${(isCardioEx(ex.name)||ex.type==='cardio') ? `<div class="detail-sets">Duration: <span>${ex.duration_min||0} min</span></div>` :
+          getSets(ex).map((s,i)=>{const kg=parseFloat(s.kg)||parseFloat(s.weight)||0;return `<div class="detail-sets">Set ${i+1}: <span>${kg}kg × ${s.reps||0}</span> <span style="color:var(--text3);font-size:10px">(${Math.round(kg*(s.reps||0))}kg)</span></div>`;}).join('')}
+        ${!(isCardioEx(ex.name)||ex.type==='cardio') ? `<div style="font-size:10px;color:var(--text3);margin-top:6px">Best: ${parseFloat(bestSet.kg)||0}kg×${bestSet.reps||0} · Vol: ${Math.round(getSets(ex).reduce((a,s)=>a+((parseFloat(s.kg)||0)*(s.reps||0)),0))}kg</div>` : ''}
       </div>`;
     }).join('')}
     ${w.notes ? `<div class="workout-detail" style="border-color:rgba(255,255,255,0.1)"><div style="font-size:9px;color:var(--text3);margin-bottom:4px;letter-spacing:2px">NOTES</div><div style="font-size:12px;color:var(--text2);line-height:1.6">${w.notes}</div></div>` : ''}
     <div class="stat-grid" style="margin-top:12px">
       <div class="stat-card"><div class="stat-card-label">Total Volume</div><div class="stat-card-value">${Math.round(totalVol).toLocaleString()}</div><div class="stat-card-sub">kilograms</div></div>
-      <div class="stat-card"><div class="stat-card-label">Total Sets</div><div class="stat-card-value">${w.exercises.reduce((a,e)=>a+(e.sets?.length ?? 0),0)}</div><div class="stat-card-sub">across ${w.exercises.length} exercises</div></div>
+      <div class="stat-card"><div class="stat-card-label">Total Sets</div><div class="stat-card-value">${w.exercises.reduce((a,e)=>a+getSets(e).length,0)}</div><div class="stat-card-sub">across ${w.exercises.length} exercises</div></div>
     </div>
     <button class="btn btn-danger" style="width:100%;padding:12px;margin-top:4px" onclick="deleteWorkout(${w.id})">DELETE WORKOUT</button>`;
   document.getElementById('history-filters').innerHTML = '';
@@ -1758,11 +1788,12 @@ function renderPRs() {
     workouts.forEach(w => {
       w.exercises.filter(e => e.name === exName).forEach(ex => {
         if (!exMuscle) exMuscle = ex.muscle || inferMuscleForExercise(ex.name);
-        ex.sets.forEach(s => {
-          if (s.kg > maxKg) { maxKg = s.kg; maxKgDate = w.date; }
-          if (s.reps > maxReps) { maxReps = s.reps; maxRepsDate = w.date; }
+        getSets(ex).forEach(s => {
+          const kg = parseFloat(s.kg)||parseFloat(s.weight)||0;
+          if (kg > maxKg) { maxKg = kg; maxKgDate = w.date; }
+          if ((s.reps||0) > maxReps) { maxReps = s.reps||0; maxRepsDate = w.date; }
         });
-        const vol = ex.sets.reduce((a,s) => a+(s.kg*s.reps||0),0);
+        const vol = getSets(ex).reduce((a,s) => a+((parseFloat(s.kg)||parseFloat(s.weight)||0)*(s.reps||0)),0);
         if (vol > maxVol) { maxVol = vol; maxVolDate = w.date; }
       });
     });
@@ -1787,9 +1818,9 @@ function renderStats() {
   }
 
   const totalWorkouts = workouts.length;
-  const totalVol = workouts.reduce((a,w) => a+w.exercises.reduce((b,e)=>b+e.sets.reduce((c,s)=>c+(s.kg*s.reps||0),0),0),0);
+  const totalVol = workouts.reduce((a,w) => a+w.exercises.reduce((b,e)=>b+getSets(e).reduce((c,s)=>c+((parseFloat(s.kg)||0)*(s.reps||0)),0),0),0);
   const avgDur = Math.round(workouts.reduce((a,w)=>a+w.duration,0)/workouts.length);
-  const totalSets = workouts.reduce((a,w)=>a+w.exercises.reduce((b,e)=>b+(e.sets?.length ?? 0),0),0);
+  const totalSets = workouts.reduce((a,w)=>a+w.exercises.reduce((b,e)=>b+getSets(e).length,0),0);
   const last7 = workouts.filter(w => (new Date()-new Date(w.date))/(86400000) <= 7).length;
   const last30 = workouts.filter(w => (new Date()-new Date(w.date))/(86400000) <= 30).length;
 
@@ -1799,7 +1830,7 @@ function renderStats() {
   const maxMC = Math.max(...Object.values(muscleCounts));
 
   const last10 = workouts.slice(0,10).reverse();
-  const vols = last10.map(w => w.exercises.reduce((a,e)=>a+e.sets.reduce((b,s)=>b+(s.kg*s.reps||0),0),0));
+  const vols = last10.map(w => w.exercises.reduce((a,e)=>a+getSets(e).reduce((b,s)=>b+((parseFloat(s.kg)||0)*(s.reps||0)),0),0));
   const maxVol = Math.max(...vols, 1);
 
   const MUSCLE_COLORS = {
