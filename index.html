@@ -197,20 +197,10 @@ body {
 .warmup-row input:focus { outline: none; border-color: var(--accent); }
 
 /* ── MUSCLE GRID ─────────────────────────────────────────── */
-.muscle-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
-.muscle-grid-section-label {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  color: var(--text3);
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-.muscle-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.muscle-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
 .muscle-chip {
-  padding: 7px 13px;
-  border-radius: 7px;
+  padding: 6px 12px;
+  border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--bg3);
   color: var(--text2);
@@ -221,26 +211,9 @@ body {
   cursor: pointer;
   transition: all 0.15s;
   text-transform: uppercase;
-  position: relative;
 }
 .muscle-chip:hover { border-color: var(--border2); color: var(--text); }
 .muscle-chip.selected { font-weight: 700; }
-/* DAY-TYPE chips — bigger, bold, gradient feel */
-.muscle-chip.day-type {
-  font-size: 14px;
-  padding: 9px 16px;
-  letter-spacing: 1.5px;
-}
-.muscle-chip.day-type .chip-sub {
-  display: block;
-  font-size: 8px;
-  font-weight: 400;
-  letter-spacing: 1px;
-  color: var(--text3);
-  margin-top: 1px;
-  text-transform: uppercase;
-}
-.muscle-chip.day-type.selected .chip-sub { color: inherit; opacity: 0.7; }
 /* Per-muscle colors */
 .muscle-chip[data-m="Chest"].selected { background: rgba(255,82,119,0.15); border-color: rgba(255,82,119,0.6); color: var(--chest-c); }
 .muscle-chip[data-m="Back"].selected { background: rgba(0,180,255,0.15); border-color: rgba(0,180,255,0.6); color: var(--back-c); }
@@ -255,6 +228,7 @@ body {
 .muscle-chip[data-day="Pull"].selected { background: rgba(0,180,255,0.12); border-color: rgba(0,180,255,0.55); color: var(--back-c); }
 .muscle-chip[data-day="Lower"].selected { background: rgba(255,107,53,0.12); border-color: rgba(255,107,53,0.55); color: var(--legs-c); }
 .muscle-chip[data-day="Upper"].selected { background: rgba(180,122,255,0.12); border-color: rgba(180,122,255,0.55); color: var(--purple); }
+.muscle-chip[data-day="Rest"].selected { background: rgba(122,136,150,0.12); border-color: rgba(122,136,150,0.4); color: var(--text2); }
 
 /* ── SUGGEST EXERCISES MODAL ─────────────────────────────── */
 .suggest-modal-overlay {
@@ -1482,6 +1456,13 @@ const DAY_TYPES = {
     muscles: ['Chest','Back','Shoulders','Biceps','Triceps'],
     color: 'var(--purple)',
     emoji: '🟣'
+  },
+  Rest: {
+    label: 'REST',
+    sub: 'Recovery day',
+    muscles: [],
+    color: 'var(--text2)',
+    emoji: '😴'
   }
 };
 
@@ -2160,43 +2141,30 @@ function updateDurationBadge() {
 function renderMuscleGrid() {
   const g = document.getElementById('muscle-grid');
 
-  // Day-type row
-  const dayRow = `
-    <div>
-      <div class="muscle-grid-section-label">Training Day</div>
-      <div class="muscle-chip-row">
-        ${Object.entries(DAY_TYPES).map(([key, dt]) => {
-          const isSelected = selectedDayType === key;
-          return `<button class="muscle-chip day-type${isSelected ? ' selected' : ''}" data-day="${key}" onclick="toggleDayType('${key}')">
-            ${dt.label}
-            <span class="chip-sub">${dt.sub}</span>
-          </button>`;
-        }).join('')}
-      </div>
-    </div>`;
+  // All chips in one flat row: day types first, then individual muscles, then Rest
+  const dayChips = Object.entries(DAY_TYPES).map(([key, dt]) => {
+    const isSelected = selectedDayType === key;
+    return `<button class="muscle-chip${isSelected ? ' selected' : ''}" data-day="${key}" onclick="toggleDayType('${key}')">${dt.label}</button>`;
+  }).join('');
 
-  // Individual muscle row
-  const indRow = `
-    <div>
-      <div class="muscle-grid-section-label">Or pick individual muscles</div>
-      <div class="muscle-chip-row">
-        ${MUSCLES.map(m =>
-          `<button class="muscle-chip${selectedMuscles.includes(m) ? ' selected' : ''}" data-m="${m}" onclick="toggleMuscle('${m}')">${m}</button>`
-        ).join('')}
-      </div>
-    </div>`;
+  const muscleChips = MUSCLES.map(m => {
+    const isSelected = !selectedDayType && selectedMuscles.includes(m);
+    return `<button class="muscle-chip${isSelected ? ' selected' : ''}" data-m="${m}" onclick="toggleMuscle('${m}')">${m}</button>`;
+  }).join('');
 
-  g.innerHTML = dayRow + indRow;
+  const restSelected = selectedDayType === 'Rest';
+  const restChip = `<button class="muscle-chip${restSelected ? ' selected' : ''}" data-day="Rest" onclick="toggleDayType('Rest')">Rest</button>`;
+
+  g.innerHTML = dayChips + muscleChips + restChip;
 }
 
 function toggleDayType(key) {
   if (selectedDayType === key) {
-    // Deselect — clear day type and its muscles
     selectedDayType = null;
     selectedMuscles = [];
   } else {
     selectedDayType = key;
-    selectedMuscles = [...DAY_TYPES[key].muscles];
+    selectedMuscles = key === 'Rest' ? [] : [...DAY_TYPES[key].muscles];
   }
   renderMuscleGrid();
   checkLastWorkoutBanner();
