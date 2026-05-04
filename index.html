@@ -223,95 +223,6 @@ body {
 .muscle-chip[data-m="Legs"].selected { background: rgba(255,107,53,0.15); border-color: rgba(255,107,53,0.5); color: var(--legs-c); }
 .muscle-chip[data-m="Abs"].selected { background: rgba(255,221,0,0.1); border-color: rgba(255,221,0,0.4); color: var(--abs-c); }
 .muscle-chip[data-m="Cardio"].selected { background: rgba(0,229,255,0.1); border-color: rgba(0,229,255,0.4); color: var(--cardio-c); }
-/* Day-type selected states */
-.muscle-chip[data-day="Push"].selected { background: rgba(255,82,119,0.12); border-color: rgba(255,82,119,0.55); color: var(--chest-c); }
-.muscle-chip[data-day="Pull"].selected { background: rgba(0,180,255,0.12); border-color: rgba(0,180,255,0.55); color: var(--back-c); }
-.muscle-chip[data-day="Lower"].selected { background: rgba(255,107,53,0.12); border-color: rgba(255,107,53,0.55); color: var(--legs-c); }
-.muscle-chip[data-day="Upper"].selected { background: rgba(180,122,255,0.12); border-color: rgba(180,122,255,0.55); color: var(--purple); }
-.muscle-chip[data-day="Rest"].selected { background: rgba(122,136,150,0.12); border-color: rgba(122,136,150,0.4); color: var(--text2); }
-
-/* ── SUGGEST EXERCISES MODAL ─────────────────────────────── */
-.suggest-modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.92);
-  z-index: 300;
-  display: flex; align-items: flex-end;
-  backdrop-filter: blur(8px);
-}
-.suggest-modal-overlay.hidden { display: none; }
-.suggest-modal {
-  background: var(--bg2);
-  border: 1px solid var(--border2);
-  border-radius: 20px 20px 0 0;
-  padding: 20px 18px 34px;
-  width: 100%;
-  max-height: 88vh;
-  overflow-y: auto;
-  animation: slideUp 0.28s cubic-bezier(0.22,1,0.36,1);
-}
-.suggest-day-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 12px; font-weight: 700; letter-spacing: 2px;
-  text-transform: uppercase;
-  padding: 3px 10px; border-radius: 5px;
-  margin-bottom: 10px;
-}
-.suggest-ex-grid { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
-.suggest-ex-row {
-  display: flex; align-items: center; gap: 10px;
-  background: var(--bg3); border: 1px solid var(--border);
-  border-radius: 9px; padding: 10px 12px;
-  cursor: pointer; transition: all 0.15s;
-  user-select: none;
-}
-.suggest-ex-row:hover { border-color: var(--border2); background: var(--bg4); }
-.suggest-ex-row.checked { border-color: rgba(0,229,255,0.4); background: rgba(0,229,255,0.05); }
-.suggest-ex-check {
-  width: 20px; height: 20px; border-radius: 5px;
-  border: 2px solid var(--border2);
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; transition: all 0.15s;
-  font-size: 11px;
-}
-.suggest-ex-row.checked .suggest-ex-check {
-  background: var(--accent); border-color: var(--accent); color: #000;
-}
-.suggest-ex-info { flex: 1; min-width: 0; }
-.suggest-ex-name {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 15px; font-weight: 700;
-  color: var(--text); letter-spacing: 0.3px;
-}
-.suggest-ex-detail { font-size: 10px; color: var(--text2); margin-top: 2px; letter-spacing: 0.3px; }
-.suggest-ex-muscle {
-  font-size: 8px; font-family: 'Barlow Condensed', sans-serif;
-  font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
-  padding: 2px 6px; border-radius: 3px; flex-shrink: 0;
-}
-.suggest-section-hdr {
-  font-family: 'Barlow Condensed', sans-serif;
-  font-size: 10px; font-weight: 700; letter-spacing: 2px;
-  color: var(--text3); text-transform: uppercase;
-  margin: 14px 0 6px; padding-bottom: 4px;
-  border-bottom: 1px solid var(--border);
-}
-.suggest-select-all {
-  font-size: 10px; color: var(--accent); letter-spacing: 1px;
-  cursor: pointer; float: right; font-weight: 700;
-}
-.suggest-footer {
-  position: sticky; bottom: 0;
-  background: var(--bg2);
-  padding: 12px 0 0;
-  border-top: 1px solid var(--border);
-  display: flex; gap: 8px; margin-top: 4px;
-}
-.suggest-count-badge {
-  font-size: 10px; color: var(--text2); letter-spacing: 1px;
-  margin-bottom: 8px; text-align: center;
-}
-.suggest-count-badge span { color: var(--accent); font-weight: 700; font-size: 13px; }
 
 /* ── LAST SESSION BANNER ─────────────────────────────────── */
 .last-workout-banner {
@@ -454,12 +365,12 @@ body {
 /* ── SETS TABLE ──────────────────────────────────────────── */
 .sets-table { width: 100%; border-collapse: collapse; }
 .sets-table th {
-  font-size: 10px;
-  color: var(--text2);
+  font-size: 9px;
+  color: var(--text3);
   text-align: left;
   padding: 2px 4px 6px;
   letter-spacing: 1.5px;
-  font-weight: 700;
+  font-weight: 400;
   text-transform: uppercase;
 }
 .sets-table td { padding: 3px 4px; }
@@ -476,7 +387,7 @@ body {
   transition: border-color 0.15s;
 }
 .sets-table input:focus { outline: none; border-color: var(--accent); }
-.set-vol { font-size: 10px; color: var(--text2); text-align: center; padding: 3px 2px; min-width: 34px; }
+.set-vol { font-size: 10px; color: var(--text3); text-align: center; padding: 3px 2px; min-width: 34px; }
 .add-set-btn {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
@@ -1139,12 +1050,6 @@ input::placeholder { color: var(--text3); }
   <!-- LOG PAGE -->
   <div class="page active" id="page-log">
 
-    <div class="section-label">Workout Date</div>
-    <div style="margin-bottom:10px">
-      <input type="date" id="workout-date" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:14px;padding:10px 12px;border-radius:8px;letter-spacing:1px;-webkit-appearance:none;appearance:none" oninput="updateWorkoutDateLabel(this.value)">
-      <div id="workout-date-label" style="font-size:10px;color:var(--accent);letter-spacing:1px;margin-top:4px;text-align:right"></div>
-    </div>
-
     <div class="section-label">Session Time</div>
     <div class="time-display-row">
       <div class="time-block" id="in-time-block">
@@ -1210,21 +1115,6 @@ input::placeholder { color: var(--text3); }
   <!-- STATS PAGE -->
   <div class="page" id="page-stats">
     <div id="stats-content"></div>
-  </div>
-</div>
-
-<!-- SUGGEST EXERCISES MODAL -->
-<div class="suggest-modal-overlay hidden" id="suggest-modal">
-  <div class="suggest-modal">
-    <div class="modal-handle"></div>
-    <div class="modal-title" id="suggest-modal-title">SUGGESTED EXERCISES</div>
-    <div class="modal-sub" id="suggest-modal-sub">Tap to select exercises for today's session</div>
-    <div class="suggest-count-badge" id="suggest-count-badge"><span id="suggest-count">0</span> selected</div>
-    <div id="suggest-modal-body"></div>
-    <div class="suggest-footer">
-      <button class="btn btn-ghost" style="flex:1" onclick="closeSuggestModal()">CANCEL</button>
-      <button class="btn btn-primary" style="flex:2" onclick="importSuggestedExercises()">IMPORT SELECTED →</button>
-    </div>
   </div>
 </div>
 
@@ -1427,133 +1317,9 @@ const VINITH_HISTORY_EXERCISES = {
 
 const MUSCLES = ['Chest','Back','Shoulders','Biceps','Triceps','Legs','Abs','Cardio'];
 
-// ── DAY TYPES: which individual muscles each day trains ──────────────────────
-const DAY_TYPES = {
-  Push: {
-    label: 'PUSH',
-    sub: 'Chest · Shoulders · Triceps',
-    muscles: ['Chest','Shoulders','Triceps'],
-    color: 'var(--chest-c)',
-    emoji: '🔴'
-  },
-  Pull: {
-    label: 'PULL',
-    sub: 'Back · Biceps · Forearms',
-    muscles: ['Back','Biceps'],
-    color: 'var(--back-c)',
-    emoji: '🔵'
-  },
-  Lower: {
-    label: 'LOWER',
-    sub: 'Quads · Hamstrings · Glutes · Calves',
-    muscles: ['Legs'],
-    color: 'var(--legs-c)',
-    emoji: '🟠'
-  },
-  Upper: {
-    label: 'UPPER',
-    sub: 'Chest · Back · Shoulders · Arms',
-    muscles: ['Chest','Back','Shoulders','Biceps','Triceps'],
-    color: 'var(--purple)',
-    emoji: '🟣'
-  },
-  Rest: {
-    label: 'REST',
-    sub: 'Recovery day',
-    muscles: [],
-    color: 'var(--text2)',
-    emoji: '😴'
-  }
-};
-
-// ── EXPERT-CURATED SUGGESTED EXERCISES PER DAY TYPE ──────────────────────────
-// Ordered by priority. Each entry: { name, muscle, detail, sets }
-const DAY_SUGGESTIONS = {
-  Push: [
-    // CHEST — compound first
-    { name: 'Flat Bench Press',         muscle: 'Chest',     detail: 'Primary compound — chest, front delts, triceps', sets: [{kg:'',reps:''}] },
-    { name: 'Incline Bench Press',      muscle: 'Chest',     detail: 'Upper chest emphasis — sets the shelf', sets: [{kg:'',reps:''}] },
-    { name: 'Seated Chest Press',       muscle: 'Chest',     detail: 'Machine — safe heavy pressing', sets: [{kg:'',reps:''}] },
-    { name: 'Cable Fly',                muscle: 'Chest',     detail: 'Isolation — constant tension, peak squeeze', sets: [{kg:'',reps:''}] },
-    { name: 'Butterfly / Pec Deck',     muscle: 'Chest',     detail: 'Pure isolation, great finisher', sets: [{kg:'',reps:''}] },
-    { name: 'Decline Bench Press',      muscle: 'Chest',     detail: 'Lower chest & triceps', sets: [{kg:'',reps:''}] },
-    // SHOULDERS
-    { name: 'Dumbbell Shoulder Press',  muscle: 'Shoulders', detail: 'Overhead compound — full delt activation', sets: [{kg:'',reps:''}] },
-    { name: 'Lateral Raise',            muscle: 'Shoulders', detail: 'Side delts — the width builder', sets: [{kg:'',reps:''}] },
-    { name: 'Front Raise',              muscle: 'Shoulders', detail: 'Front delts — rarely needed if you bench', sets: [{kg:'',reps:''}] },
-    { name: 'Reverse Machine Fly',      muscle: 'Shoulders', detail: 'Rear delts — crucial for balance & posture', sets: [{kg:'',reps:''}] },
-    { name: 'Face Pull',                muscle: 'Shoulders', detail: 'Rear delts + rotator cuff health', sets: [{kg:'',reps:''}] },
-    { name: 'Dumbbell Shrugs',          muscle: 'Shoulders', detail: 'Traps — thickness and power look', sets: [{kg:'',reps:''}] },
-    // TRICEPS
-    { name: 'Tricep Pushdown (Rope)',    muscle: 'Triceps',   detail: 'Long head stretch — best for size', sets: [{kg:'',reps:''}] },
-    { name: 'Overhead Tricep Extension',muscle: 'Triceps',   detail: 'Long head — biggest tricep head', sets: [{kg:'',reps:''}] },
-    { name: 'Close Grip Bench Press',   muscle: 'Triceps',   detail: 'Heavy compound for tri mass', sets: [{kg:'',reps:''}] },
-    { name: 'Skull Crusher',            muscle: 'Triceps',   detail: 'Long + lateral head — size builder', sets: [{kg:'',reps:''}] },
-    { name: 'Tricep Kickback',          muscle: 'Triceps',   detail: 'Lateral head isolation finisher', sets: [{kg:'',reps:''}] },
-  ],
-  Pull: [
-    // BACK — vertical pulls first
-    { name: 'Lat Pull Down',            muscle: 'Back',    detail: 'V-taper builder — lat width essential', sets: [{kg:'',reps:''}] },
-    { name: 'Seated Row',               muscle: 'Back',    detail: 'Horizontal pull — back thickness', sets: [{kg:'',reps:''}] },
-    { name: 'Barbell Row',              muscle: 'Back',    detail: 'Mass builder — rhomboids, lats, traps', sets: [{kg:'',reps:''}] },
-    { name: 'Single Dumbbell Bent Over Row', muscle: 'Back', detail: 'Unilateral — corrects imbalances', sets: [{kg:'',reps:''}] },
-    { name: 'Plate-Loaded Iso Row',     muscle: 'Back',    detail: 'Machine — heavy safe rowing', sets: [{kg:'',reps:''}] },
-    { name: 'Pull Ups',                 muscle: 'Back',    detail: 'King of back exercises — bodyweight', sets: [{kg:'',reps:''}] },
-    { name: 'Assisted Pull Up',         muscle: 'Back',    detail: 'Machine assisted — build to bodyweight', sets: [{kg:'',reps:''}] },
-    { name: 'Hyperextensions',          muscle: 'Back',    detail: 'Lower back & erectors — injury prevention', sets: [{kg:'',reps:''}] },
-    { name: 'Deadlift',                 muscle: 'Back',    detail: 'King of all lifts — full posterior chain', sets: [{kg:'',reps:''}] },
-    // BICEPS
-    { name: 'Dumbbell Curl',            muscle: 'Biceps',  detail: 'Classic curl — supination peak contraction', sets: [{kg:'',reps:''}] },
-    { name: 'Hammer Curl',              muscle: 'Biceps',  detail: 'Brachialis + brachioradialis — arm thickness', sets: [{kg:'',reps:''}] },
-    { name: 'Barbell Curl',             muscle: 'Biceps',  detail: 'Heavy compound curl — peak mass', sets: [{kg:'',reps:''}] },
-    { name: 'Preacher Curl',            muscle: 'Biceps',  detail: 'Long head isolation — big peak', sets: [{kg:'',reps:''}] },
-    { name: 'Rope Pull',                muscle: 'Biceps',  detail: 'Cable — constant tension curl', sets: [{kg:'',reps:''}] },
-    { name: 'Seated Biceps Curl Machine',muscle:'Biceps',  detail: 'Machine — safe heavy load', sets: [{kg:'',reps:''}] },
-    { name: 'Concentration Curl',       muscle: 'Biceps',  detail: 'Peak isolation — mind-muscle connection', sets: [{kg:'',reps:''}] },
-  ],
-  Lower: [
-    // QUADS — compound first
-    { name: 'Barbell Squat',            muscle: 'Legs', detail: 'King of lower body — quads, glutes, core', sets: [{kg:'',reps:''}] },
-    { name: 'Leg Press',                muscle: 'Legs', detail: 'Machine compound — heavy quad work', sets: [{kg:'',reps:''}] },
-    { name: 'Squat Machine',            muscle: 'Legs', detail: 'Guided squat — great for beginners', sets: [{kg:'',reps:''}] },
-    { name: 'Hack Squat',               muscle: 'Legs', detail: 'Quad dominant — VMO & lower quad', sets: [{kg:'',reps:''}] },
-    { name: 'Walking Lunges',           muscle: 'Legs', detail: 'Quads, glutes, balance — functional', sets: [{kg:'',reps:''}] },
-    { name: 'Bulgarian Split Squat',    muscle: 'Legs', detail: 'Single leg — best quad isolation', sets: [{kg:'',reps:''}] },
-    // POSTERIOR CHAIN
-    { name: 'Romanian Deadlift',        muscle: 'Legs', detail: 'Hamstring & glute hinge — form matters', sets: [{kg:'',reps:''}] },
-    { name: 'Stiff Leg Deadlift',       muscle: 'Legs', detail: 'Hamstring stretch — full range', sets: [{kg:'',reps:''}] },
-    { name: 'Leg Curls',                muscle: 'Legs', detail: 'Hamstring isolation machine', sets: [{kg:'',reps:''}] },
-    { name: 'Hip Thrust',               muscle: 'Legs', detail: 'Glute king — loaded hip extension', sets: [{kg:'',reps:''}] },
-    // ISOLATION
-    { name: 'Leg Extension',            muscle: 'Legs', detail: 'Quad isolation — VMO finisher', sets: [{kg:'',reps:''}] },
-    { name: 'Calf Raise',               muscle: 'Legs', detail: 'Gastrocnemius — go heavy & slow', sets: [{kg:'',reps:''}] },
-    { name: 'Seated Calf Raise',        muscle: 'Legs', detail: 'Soleus — often neglected', sets: [{kg:'',reps:''}] },
-  ],
-  Upper: [
-    // CHEST
-    { name: 'Flat Bench Press',         muscle: 'Chest',     detail: 'Chest compound — primary push movement', sets: [{kg:'',reps:''}] },
-    { name: 'Incline Bench Press',      muscle: 'Chest',     detail: 'Upper chest — essential for full development', sets: [{kg:'',reps:''}] },
-    { name: 'Cable Fly',                muscle: 'Chest',     detail: 'Chest isolation — peak squeeze', sets: [{kg:'',reps:''}] },
-    // BACK
-    { name: 'Lat Pull Down',            muscle: 'Back',      detail: 'Primary vertical pull — lat width', sets: [{kg:'',reps:''}] },
-    { name: 'Seated Row',               muscle: 'Back',      detail: 'Horizontal pull — back thickness', sets: [{kg:'',reps:''}] },
-    { name: 'Hyperextensions',          muscle: 'Back',      detail: 'Lower back health — always include', sets: [{kg:'',reps:''}] },
-    // SHOULDERS
-    { name: 'Dumbbell Shoulder Press',  muscle: 'Shoulders', detail: 'Overhead press — shoulder compound', sets: [{kg:'',reps:''}] },
-    { name: 'Lateral Raise',            muscle: 'Shoulders', detail: 'Side delts — width & aesthetics', sets: [{kg:'',reps:''}] },
-    { name: 'Reverse Machine Fly',      muscle: 'Shoulders', detail: 'Rear delts — posture & balance', sets: [{kg:'',reps:''}] },
-    // BICEPS + TRICEPS
-    { name: 'Dumbbell Curl',            muscle: 'Biceps',    detail: 'Bicep superset — supinate & squeeze', sets: [{kg:'',reps:''}] },
-    { name: 'Hammer Curl',              muscle: 'Biceps',    detail: 'Brachialis — arm thickness', sets: [{kg:'',reps:''}] },
-    { name: 'Tricep Pushdown (Rope)',    muscle: 'Triceps',   detail: 'Tricep finisher — long head', sets: [{kg:'',reps:''}] },
-    { name: 'Overhead Tricep Extension',muscle: 'Triceps',   detail: 'Long head — pairs with bicep superset', sets: [{kg:'',reps:''}] },
-  ]
-};
-
 // ── STATE ───────────────────────────────────────────────────────────────────
 let currentExercises = [];
 let selectedMuscles = [];
-let selectedDayType = null; // 'Push'|'Pull'|'Lower'|'Upper'|null
 let workouts = [];
 let viewingWorkout = null;
 let historyFilter = 'all';
@@ -1562,7 +1328,6 @@ let inTime = null, outTime = null;
 let timeModalTarget = null;
 let clockInterval = null;
 let swapModalForExercise = null;
-let suggestChecked = new Set(); // checked exercise names in suggest modal
 
 // ── SUPABASE CONFIG ──────────────────────────────────────────────────────
 const SUPABASE_URL = 'https://kodlikwntrkggwmuulgg.supabase.co';
@@ -1959,10 +1724,6 @@ async function initApp() {
 
   const now = new Date();
   document.getElementById('header-date').textContent = now.toLocaleDateString('en-IN', {weekday:'short', month:'short', day:'numeric'});
-  // Set workout date field to today
-  const todayStr = now.toISOString().slice(0,10);
-  const dateFld = document.getElementById('workout-date');
-  if (dateFld) { dateFld.value = todayStr; dateFld.max = todayStr; updateWorkoutDateLabel(todayStr); }
   updateStreak();
   renderMuscleGrid();
   renderExercises();
@@ -2140,41 +1901,12 @@ function updateDurationBadge() {
 // ── MUSCLE SELECTION ──────────────────────────────────────────────────────
 function renderMuscleGrid() {
   const g = document.getElementById('muscle-grid');
-
-  // All chips in one flat row: day types first, then individual muscles, then Rest
-  const dayChips = Object.entries(DAY_TYPES).map(([key, dt]) => {
-    const isSelected = selectedDayType === key;
-    return `<button class="muscle-chip${isSelected ? ' selected' : ''}" data-day="${key}" onclick="toggleDayType('${key}')">${dt.label}</button>`;
-  }).join('');
-
-  const muscleChips = MUSCLES.map(m => {
-    const isSelected = !selectedDayType && selectedMuscles.includes(m);
-    return `<button class="muscle-chip${isSelected ? ' selected' : ''}" data-m="${m}" onclick="toggleMuscle('${m}')">${m}</button>`;
-  }).join('');
-
-  const restSelected = selectedDayType === 'Rest';
-  const restChip = `<button class="muscle-chip${restSelected ? ' selected' : ''}" data-day="Rest" onclick="toggleDayType('Rest')">Rest</button>`;
-
-  g.innerHTML = dayChips + muscleChips + restChip;
-}
-
-function toggleDayType(key) {
-  if (selectedDayType === key) {
-    selectedDayType = null;
-    selectedMuscles = [];
-  } else {
-    selectedDayType = key;
-    selectedMuscles = key === 'Rest' ? [] : [...DAY_TYPES[key].muscles];
-  }
-  renderMuscleGrid();
-  checkLastWorkoutBanner();
-  if (currentExercises.length > 0) { assignMusclesToExercises(); renderExercises(); }
-  saveDraft();
+  g.innerHTML = MUSCLES.map(m =>
+    `<button class="muscle-chip${selectedMuscles.includes(m)?' selected':''}" data-m="${m}" onclick="toggleMuscle('${m}')">${m}</button>`
+  ).join('');
 }
 
 function toggleMuscle(m) {
-  // Picking individual muscle clears day-type selection
-  selectedDayType = null;
   if (selectedMuscles.includes(m)) {
     selectedMuscles = selectedMuscles.filter(x => x !== m);
   } else {
@@ -2182,7 +1914,11 @@ function toggleMuscle(m) {
   }
   renderMuscleGrid();
   checkLastWorkoutBanner();
-  if (currentExercises.length > 0) { assignMusclesToExercises(); renderExercises(); }
+  // If exercises already loaded, re-assign muscles + re-render
+  if (currentExercises.length > 0) {
+    assignMusclesToExercises();
+    renderExercises();
+  }
   saveDraft();
 }
 
@@ -2197,54 +1933,22 @@ function checkLastWorkoutBanner() {
   ]);
 
   // For each selected muscle, find its most recent session independently
-  const muscleLastWorkout = {};
+  // Then merge: common/cardio from the most recent overall session, muscle exercises per muscle
+  const muscleLastWorkout = {}; // muscle -> most recent workout with that muscle
   selectedMuscles.forEach(m => {
-    // FIX: for Abs and Cardio, also match workouts where exercises contain that muscle type
-    const found = workouts.find(w => {
-      if (w.muscles.includes(m)) return true;
-      // Fallback: check if any exercise in this workout belongs to this muscle
-      return w.exercises.some(ex => {
-        const exMuscle = ex.muscle || inferMuscleForExercise(ex.name || ex.name_raw || '');
-        return exMuscle === m;
-      });
-    });
+    const found = workouts.find(w => w.muscles.includes(m));
     if (found) muscleLastWorkout[m] = found;
   });
 
   const musclesWithHistory = Object.keys(muscleLastWorkout);
-
-  // If no history at all for selected muscles → show suggest banner
-  if (musclesWithHistory.length === 0) {
-    const dayKey = selectedDayType;
-    const hasSuggestions = dayKey && DAY_SUGGESTIONS[dayKey];
-    const hasMuscleLibrary = selectedMuscles.some(m => (EXERCISE_ALTERNATIVES[m] || []).length > 0);
-    if (hasSuggestions || hasMuscleLibrary) {
-      banner.style.display = 'block';
-      const dt = dayKey ? DAY_TYPES[dayKey] : null;
-      const label = dt ? dt.label + ' DAY' : selectedMuscles.join(' + ');
-      banner.innerHTML = `
-        <div class="last-workout-banner" style="border-color:rgba(57,255,106,0.25);background:rgba(57,255,106,0.04)">
-          <div class="lwb-header">
-            <div class="lwb-title" style="color:var(--green)">✦ First ${label} session?</div>
-          </div>
-          <div style="font-size:11px;color:var(--text2);margin-bottom:8px;line-height:1.5">No history yet — get expert-curated exercises for this day type.</div>
-          <button class="load-last-btn" style="background:rgba(57,255,106,0.1);border-color:rgba(57,255,106,0.35);color:var(--green)" onclick="openSuggestModal()">💡 Suggest exercises →</button>
-        </div>`;
-    } else {
-      banner.style.display = 'none';
-    }
-    return;
-  }
+  if (musclesWithHistory.length === 0) { banner.style.display = 'none'; return; }
 
   // Build merged exercise preview
   const seenNames = new Set();
   const mergedExercises = [];
 
   // First pass: common/cardio from the single most recent matching workout
-  const overallLast = workouts.find(w =>
-    w.muscles.some(m => selectedMuscles.includes(m)) ||
-    w.exercises.some(ex => selectedMuscles.includes(ex.muscle || inferMuscleForExercise(ex.name || ex.name_raw || '')))
-  );
+  const overallLast = workouts.find(w => w.muscles.some(m => selectedMuscles.includes(m)));
   if (overallLast) {
     overallLast.exercises.forEach(ex => {
       const name = (ex.name || ex.name_raw || '');
@@ -2267,8 +1971,7 @@ function checkLastWorkoutBanner() {
       const nameLow = name.toLowerCase();
       if (seenNames.has(nameLow)) return;
       const exMuscle = ex.muscle || inferMuscleForExercise(name);
-      // FIX: for Abs/Cardio, if exMuscle is null but the workout had that muscle, include it
-      if (exMuscle === m || (!exMuscle && muscleLastWorkout[m] === wo)) {
+      if (exMuscle === m) {
         seenNames.add(nameLow);
         mergedExercises.push(ex);
       }
@@ -2277,29 +1980,23 @@ function checkLastWorkoutBanner() {
 
   if (mergedExercises.length === 0) { banner.style.display = 'none'; return; }
 
-  // Build date label
+  // Build date label: show per-muscle dates if they differ
   const dateLabels = [...new Set(musclesWithHistory.map(m => muscleLastWorkout[m].date))];
   const dateStr = dateLabels.length === 1
     ? formatDateShort(dateLabels[0])
     : musclesWithHistory.map(m => `${m}: ${formatDateShort(muscleLastWorkout[m].date)}`).join(' · ');
 
-  const dayKey = selectedDayType;
-  const hasSuggestions = dayKey && DAY_SUGGESTIONS[dayKey];
-
   banner.style.display = 'block';
   banner.innerHTML = `
     <div class="last-workout-banner">
       <div class="lwb-header">
-        <div class="lwb-title">⚡ Last ${selectedDayType ? DAY_TYPES[selectedDayType].label+' DAY' : selectedMuscles.join('+')} session</div>
+        <div class="lwb-title">⚡ Last ${selectedMuscles.join('+')} session</div>
         <div class="lwb-date" style="font-size:9px">${dateStr}</div>
       </div>
       <div class="lwb-exercises">
         ${mergedExercises.map(e => `<div class="lwb-ex-pill">${e.name||e.name_raw||''}</div>`).join('')}
       </div>
-      <div style="display:flex;gap:6px;margin-top:8px">
-        <button class="load-last-btn" style="flex:1" onclick="loadLastWorkoutFiltered()">Load last session →</button>
-        ${hasSuggestions ? `<button class="load-last-btn" style="flex:1;background:rgba(57,255,106,0.08);border-color:rgba(57,255,106,0.3);color:var(--green)" onclick="openSuggestModal()">💡 Suggestions</button>` : ''}
-      </div>
+      <button class="load-last-btn" onclick="loadLastWorkoutFiltered()">Load last session →</button>
     </div>`;
 }
 
@@ -2333,16 +2030,10 @@ function loadLastWorkoutFiltered() {
     'scapular pull ups','scapular pull','hyperextensions','stretching'
   ]);
 
-  // Find the most recent workout per selected muscle (with Abs/Cardio fix)
+  // Find the most recent workout per selected muscle
   const muscleLastWorkout = {};
   selectedMuscles.forEach(m => {
-    const found = workouts.find(w => {
-      if (w.muscles.includes(m)) return true;
-      return w.exercises.some(ex => {
-        const exMuscle = ex.muscle || inferMuscleForExercise(ex.name || ex.name_raw || '');
-        return exMuscle === m;
-      });
-    });
+    const found = workouts.find(w => w.muscles.includes(m));
     if (found) muscleLastWorkout[m] = found;
   });
 
@@ -2362,10 +2053,7 @@ function loadLastWorkoutFiltered() {
   }
 
   // First: common/cardio from the overall most recent matching workout
-  const overallLast = workouts.find(w =>
-    w.muscles.some(m => selectedMuscles.includes(m)) ||
-    w.exercises.some(ex => selectedMuscles.includes(ex.muscle || inferMuscleForExercise(ex.name || ex.name_raw || '')))
-  );
+  const overallLast = workouts.find(w => w.muscles.some(m => selectedMuscles.includes(m)));
   if (overallLast) {
     overallLast.exercises.forEach(ex => {
       const name = (ex.name || ex.name_raw || '');
@@ -2388,7 +2076,7 @@ function loadLastWorkoutFiltered() {
       const nameLow = name.toLowerCase();
       if (seenNames.has(nameLow)) return;
       const exMuscle = ex.muscle || inferMuscleForExercise(name);
-      if (exMuscle === m || (!exMuscle && muscleLastWorkout[m] === wo)) {
+      if (exMuscle === m) {
         seenNames.add(nameLow);
         merged.push(mapEx(ex));
       }
@@ -2463,7 +2151,7 @@ function renderExercises() {
           const vol = s.kg && s.reps ? Math.round((parseFloat(s.kg)||0) * (s.reps||0)) : '';
           const isPR = checkIfPRSet(ex.name, s.kg, s.reps);
           return `<tr${isPR?' style="background:rgba(255,224,51,0.04)"':''}>
-            <td style="color:var(--text2);font-size:10px;padding:3px 6px">${si+1}</td>
+            <td style="color:var(--text3);font-size:10px;padding:3px 6px">${si+1}</td>
             <td><input type="number" value="${s.kg||''}" placeholder="0" min="0" step="0.5" oninput="updateSet(${ei},${si},'kg',this.value)" onfocus="this.select()"></td>
             <td><input type="number" value="${s.reps||''}" placeholder="0" min="0" oninput="updateSet(${ei},${si},'reps',this.value)" onfocus="this.select()"></td>
             <td class="set-vol">${vol ? vol+'kg' : '—'}</td>
@@ -2570,153 +2258,6 @@ function updateSet(ei, si, field, val) {
   }
 }
 
-// ── SUGGEST EXERCISES MODAL ────────────────────────────────────────────────
-const MUSCLE_COLORS_MAP = {
-  Chest: { bg: 'rgba(255,82,119,0.15)', border: 'rgba(255,82,119,0.4)', color: 'var(--chest-c)' },
-  Back: { bg: 'rgba(0,180,255,0.15)', border: 'rgba(0,180,255,0.4)', color: 'var(--back-c)' },
-  Shoulders: { bg: 'rgba(255,167,34,0.15)', border: 'rgba(255,167,34,0.4)', color: 'var(--shoulders-c)' },
-  Biceps: { bg: 'rgba(57,255,106,0.12)', border: 'rgba(57,255,106,0.35)', color: 'var(--biceps-c)' },
-  Triceps: { bg: 'rgba(180,122,255,0.15)', border: 'rgba(180,122,255,0.35)', color: 'var(--triceps-c)' },
-  Legs: { bg: 'rgba(255,107,53,0.15)', border: 'rgba(255,107,53,0.35)', color: 'var(--legs-c)' },
-  Abs: { bg: 'rgba(255,221,0,0.1)', border: 'rgba(255,221,0,0.3)', color: 'var(--abs-c)' },
-  Cardio: { bg: 'rgba(0,229,255,0.1)', border: 'rgba(0,229,255,0.3)', color: 'var(--cardio-c)' },
-};
-
-function openSuggestModal() {
-  suggestChecked = new Set();
-
-  // Build the exercise list: day-type suggestions first, then muscle library fallback
-  const dayKey = selectedDayType;
-  let exercises = [];
-
-  if (dayKey && DAY_SUGGESTIONS[dayKey]) {
-    exercises = DAY_SUGGESTIONS[dayKey];
-  } else {
-    // Fall back to individual muscle suggestions from EXERCISE_ALTERNATIVES
-    selectedMuscles.forEach(m => {
-      (EXERCISE_ALTERNATIVES[m] || []).forEach(name => {
-        if (!exercises.find(e => e.name === name)) {
-          exercises.push({ name, muscle: m, detail: m + ' exercise', sets: [{kg:'',reps:''}] });
-        }
-      });
-    });
-  }
-
-  const dt = dayKey ? DAY_TYPES[dayKey] : null;
-  const titleStr = dt ? dt.label + ' DAY' : selectedMuscles.join(' + ');
-  document.getElementById('suggest-modal-title').textContent = '💡 ' + titleStr + ' EXERCISES';
-  document.getElementById('suggest-modal-sub').textContent = 'Tap exercises to add — expert-curated order';
-
-  // Group by muscle
-  const byMuscle = {};
-  exercises.forEach(ex => {
-    const m = ex.muscle || 'Other';
-    if (!byMuscle[m]) byMuscle[m] = [];
-    byMuscle[m].push(ex);
-  });
-
-  let html = '';
-  Object.entries(byMuscle).forEach(([muscle, exs]) => {
-    const mc = MUSCLE_COLORS_MAP[muscle] || {};
-    html += `<div class="suggest-section-hdr">
-      ${muscle.toUpperCase()}
-      <span class="suggest-select-all" onclick="suggestSelectGroup('${muscle}')">SELECT ALL</span>
-    </div>`;
-    exs.forEach((ex, i) => {
-      const id = `suggest-${muscle}-${i}`;
-      const mc2 = MUSCLE_COLORS_MAP[ex.muscle] || {};
-      html += `<div class="suggest-ex-row" id="${id}" onclick="toggleSuggestEx('${id}','${escapeAttr(ex.name)}','${ex.muscle||''}')">
-        <div class="suggest-ex-check" id="${id}-check"></div>
-        <div class="suggest-ex-info">
-          <div class="suggest-ex-name">${ex.name}</div>
-          <div class="suggest-ex-detail">${ex.detail}</div>
-        </div>
-        <div class="suggest-ex-muscle" style="background:${mc2.bg||'rgba(255,255,255,0.06)'};border:1px solid ${mc2.border||'rgba(255,255,255,0.1)'};color:${mc2.color||'var(--text2)'}">${(ex.muscle||'').toUpperCase()}</div>
-      </div>`;
-    });
-  });
-
-  // Store exercise data for import
-  window._suggestExercises = exercises;
-  document.getElementById('suggest-modal-body').innerHTML = html;
-  updateSuggestCount();
-  document.getElementById('suggest-modal').classList.remove('hidden');
-}
-
-function toggleSuggestEx(rowId, name, muscle) {
-  const row = document.getElementById(rowId);
-  const check = document.getElementById(rowId + '-check');
-  if (suggestChecked.has(name)) {
-    suggestChecked.delete(name);
-    row.classList.remove('checked');
-    check.textContent = '';
-  } else {
-    suggestChecked.add(name);
-    row.classList.add('checked');
-    check.textContent = '✓';
-  }
-  updateSuggestCount();
-}
-
-function suggestSelectGroup(muscle) {
-  const exercises = (window._suggestExercises || []).filter(e => e.muscle === muscle);
-  // Check if all already selected — if so, deselect all
-  const allSelected = exercises.every(e => suggestChecked.has(e.name));
-  exercises.forEach((ex, i) => {
-    const id = `suggest-${muscle}-${i}`;
-    const row = document.getElementById(id);
-    const check = document.getElementById(id + '-check');
-    if (!row) return;
-    if (allSelected) {
-      suggestChecked.delete(ex.name);
-      row.classList.remove('checked');
-      if (check) check.textContent = '';
-    } else {
-      suggestChecked.add(ex.name);
-      row.classList.add('checked');
-      if (check) check.textContent = '✓';
-    }
-  });
-  updateSuggestCount();
-}
-
-function updateSuggestCount() {
-  document.getElementById('suggest-count').textContent = suggestChecked.size;
-}
-
-function importSuggestedExercises() {
-  if (suggestChecked.size === 0) { closeSuggestModal(); return; }
-  const exercises = window._suggestExercises || [];
-  // Add in the order they appear in the suggestion list
-  exercises.forEach(ex => {
-    if (!suggestChecked.has(ex.name)) return;
-    // Don't duplicate if already in currentExercises
-    if (currentExercises.find(e => e.name === ex.name)) return;
-    if (isCardioEx(ex.name) || ex.muscle === 'Cardio') {
-      currentExercises.push({ name: ex.name, muscle: 'Cardio', type: 'cardio', duration_min: 0, sets: [] });
-    } else {
-      currentExercises.push({
-        name: ex.name,
-        muscle: ex.muscle || inferMuscleForExercise(ex.name) || null,
-        sets: [{kg:'',reps:''}]
-      });
-    }
-  });
-  assignMusclesToExercises();
-  renderExercises();
-  closeSuggestModal();
-  setTimeout(() => {
-    const c = document.querySelectorAll('.ex-card');
-    if (c.length) c[0].scrollIntoView({behavior:'smooth', block:'start'});
-  }, 80);
-}
-
-function closeSuggestModal() {
-  document.getElementById('suggest-modal').classList.add('hidden');
-  suggestChecked = new Set();
-  window._suggestExercises = null;
-}
-
 // ── SWAP MODAL ─────────────────────────────────────────────────────────────
 function openSwapModal(exIndex, exName) {
   swapModalForExercise = { exIndex, exName };
@@ -2796,15 +2337,6 @@ function escapeAttr(str) {
   return str.replace(/\\/g,'\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
-function updateWorkoutDateLabel(val) {
-  const lbl = document.getElementById('workout-date-label');
-  if (!val) { lbl.textContent = ''; return; }
-  const today = new Date().toISOString().slice(0,10);
-  if (val === today) { lbl.textContent = 'Today'; return; }
-  const diff = Math.round((new Date(today) - new Date(val)) / 86400000);
-  lbl.textContent = diff > 0 ? `${diff} day${diff>1?'s':''} ago` : (diff < 0 ? 'Future date' : 'Today');
-}
-
 // ── SAVE / CLEAR ──────────────────────────────────────────────────────────
 async function saveWorkout() {
   if (!inTime) { alert('Set your check-in time first'); return; }
@@ -2812,7 +2344,6 @@ async function saveWorkout() {
   if (currentExercises.length === 0) { alert('Add at least one exercise'); return; }
 
   const now = new Date();
-  const selectedDate = document.getElementById('workout-date').value || now.toISOString().slice(0,10);
   const finalOut = outTime || now.toTimeString().slice(0,5);
   const [ih,im] = inTime.split(':').map(Number);
   const [oh,om] = finalOut.split(':').map(Number);
@@ -2820,13 +2351,9 @@ async function saveWorkout() {
   const warmup = parseInt(document.getElementById('warmup-min').value)||0;
   const notes = document.getElementById('session-notes').value;
 
-  // Build created_at: selected workout date + current wall-clock time
-  const currentTime = now.toTimeString().slice(0,8); // HH:MM:SS
-  const createdAt = selectedDate + 'T' + currentTime;
-
   const workout = {
     id: 0, // will be replaced by dbInsertOne's returned nextId
-    date: selectedDate,
+    date: now.toISOString().slice(0,10),
     inTime, outTime: finalOut, duration, warmup,
     muscles: [...selectedMuscles],
     exercises: currentExercises
@@ -2871,14 +2398,10 @@ async function saveWorkout() {
 }
 
 function clearLog() {
-  currentExercises = []; selectedMuscles = []; selectedDayType = null;
+  currentExercises = []; selectedMuscles = [];
   inTime = null; outTime = null;
   document.getElementById('warmup-min').value = '';
   document.getElementById('session-notes').value = '';
-  // Reset workout date to today
-  const todayStr = new Date().toISOString().slice(0,10);
-  const dateFld = document.getElementById('workout-date');
-  if (dateFld) { dateFld.value = todayStr; updateWorkoutDateLabel(todayStr); }
   ['in','out'].forEach(t => {
     const el = document.getElementById(t+'-time-display');
     el.textContent = '--:--'; el.classList.add('empty');
@@ -2928,10 +2451,9 @@ function renderHistory() {
           const kg = parseFloat(s.kg)||parseFloat(s.weight)||0;
           return b + (kg * (s.reps||0));
         }, 0), 0);
-        const dayBadge = w.id ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;color:var(--accent);background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);border-radius:4px;padding:1px 7px;letter-spacing:1px">DAY ${w.id}</span>` : '';
         return `<div class="workout-item" onclick="viewWorkout(${w.id})">
           <div class="workout-item-header">
-            <div class="workout-date">${formatDate(w.date)} ${dayBadge}</div>
+            <div class="workout-date">${formatDate(w.date)}</div>
             <div class="workout-duration">${w.duration}min</div>
           </div>
           <div class="workout-muscles">${w.muscles.map(m=>`<span class="muscle-tag ${m}">${m.toUpperCase()}</span>`).join('')}</div>
@@ -2954,7 +2476,7 @@ function renderWorkoutDetail(w) {
   document.getElementById('history-list').innerHTML = `
     <button class="back-btn" onclick="viewingWorkout=null;renderHistory()">← Back to History</button>
     <div style="margin-bottom:14px">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--text);margin-bottom:4px">${formatDate(w.date)} ${w.id ? `<span style="font-size:14px;font-weight:700;color:var(--accent);background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);border-radius:4px;padding:1px 8px;letter-spacing:1px;vertical-align:middle">DAY ${w.id}</span>` : ''}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--text);margin-bottom:4px">${formatDate(w.date)}</div>
       <div style="font-size:11px;color:var(--text2)">${w.inTime} → ${w.outTime} · <span style="color:var(--accent);font-weight:700">${w.duration} min</span>${w.warmup?' · '+w.warmup+'min warmup':''}</div>
       <div class="workout-muscles" style="margin-top:8px">${w.muscles.map(m=>`<span class="muscle-tag ${m}">${m.toUpperCase()}</span>`).join('')}</div>
     </div>
