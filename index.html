@@ -365,12 +365,12 @@ body {
 /* ── SETS TABLE ──────────────────────────────────────────── */
 .sets-table { width: 100%; border-collapse: collapse; }
 .sets-table th {
-  font-size: 9px;
-  color: var(--text3);
+  font-size: 10px;
+  color: var(--text2);
   text-align: left;
   padding: 2px 4px 6px;
   letter-spacing: 1.5px;
-  font-weight: 400;
+  font-weight: 700;
   text-transform: uppercase;
 }
 .sets-table td { padding: 3px 4px; }
@@ -387,7 +387,7 @@ body {
   transition: border-color 0.15s;
 }
 .sets-table input:focus { outline: none; border-color: var(--accent); }
-.set-vol { font-size: 10px; color: var(--text3); text-align: center; padding: 3px 2px; min-width: 34px; }
+.set-vol { font-size: 10px; color: var(--text2); text-align: center; padding: 3px 2px; min-width: 34px; }
 .add-set-btn {
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
@@ -1049,6 +1049,12 @@ input::placeholder { color: var(--text3); }
 
   <!-- LOG PAGE -->
   <div class="page active" id="page-log">
+
+    <div class="section-label">Workout Date</div>
+    <div style="margin-bottom:10px">
+      <input type="date" id="workout-date" style="width:100%;background:var(--bg3);border:1px solid var(--border2);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:14px;padding:10px 12px;border-radius:8px;letter-spacing:1px;-webkit-appearance:none;appearance:none" oninput="updateWorkoutDateLabel(this.value)">
+      <div id="workout-date-label" style="font-size:10px;color:var(--accent);letter-spacing:1px;margin-top:4px;text-align:right"></div>
+    </div>
 
     <div class="section-label">Session Time</div>
     <div class="time-display-row">
@@ -1724,6 +1730,10 @@ async function initApp() {
 
   const now = new Date();
   document.getElementById('header-date').textContent = now.toLocaleDateString('en-IN', {weekday:'short', month:'short', day:'numeric'});
+  // Set workout date field to today
+  const todayStr = now.toISOString().slice(0,10);
+  const dateFld = document.getElementById('workout-date');
+  if (dateFld) { dateFld.value = todayStr; dateFld.max = todayStr; updateWorkoutDateLabel(todayStr); }
   updateStreak();
   renderMuscleGrid();
   renderExercises();
@@ -2151,7 +2161,7 @@ function renderExercises() {
           const vol = s.kg && s.reps ? Math.round((parseFloat(s.kg)||0) * (s.reps||0)) : '';
           const isPR = checkIfPRSet(ex.name, s.kg, s.reps);
           return `<tr${isPR?' style="background:rgba(255,224,51,0.04)"':''}>
-            <td style="color:var(--text3);font-size:10px;padding:3px 6px">${si+1}</td>
+            <td style="color:var(--text2);font-size:10px;padding:3px 6px">${si+1}</td>
             <td><input type="number" value="${s.kg||''}" placeholder="0" min="0" step="0.5" oninput="updateSet(${ei},${si},'kg',this.value)" onfocus="this.select()"></td>
             <td><input type="number" value="${s.reps||''}" placeholder="0" min="0" oninput="updateSet(${ei},${si},'reps',this.value)" onfocus="this.select()"></td>
             <td class="set-vol">${vol ? vol+'kg' : '—'}</td>
@@ -2337,6 +2347,15 @@ function escapeAttr(str) {
   return str.replace(/\\/g,'\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
 }
 
+function updateWorkoutDateLabel(val) {
+  const lbl = document.getElementById('workout-date-label');
+  if (!val) { lbl.textContent = ''; return; }
+  const today = new Date().toISOString().slice(0,10);
+  if (val === today) { lbl.textContent = 'Today'; return; }
+  const diff = Math.round((new Date(today) - new Date(val)) / 86400000);
+  lbl.textContent = diff > 0 ? `${diff} day${diff>1?'s':''} ago` : (diff < 0 ? 'Future date' : 'Today');
+}
+
 // ── SAVE / CLEAR ──────────────────────────────────────────────────────────
 async function saveWorkout() {
   if (!inTime) { alert('Set your check-in time first'); return; }
@@ -2344,6 +2363,7 @@ async function saveWorkout() {
   if (currentExercises.length === 0) { alert('Add at least one exercise'); return; }
 
   const now = new Date();
+  const selectedDate = document.getElementById('workout-date').value || now.toISOString().slice(0,10);
   const finalOut = outTime || now.toTimeString().slice(0,5);
   const [ih,im] = inTime.split(':').map(Number);
   const [oh,om] = finalOut.split(':').map(Number);
@@ -2351,9 +2371,13 @@ async function saveWorkout() {
   const warmup = parseInt(document.getElementById('warmup-min').value)||0;
   const notes = document.getElementById('session-notes').value;
 
+  // Build created_at: selected workout date + current wall-clock time
+  const currentTime = now.toTimeString().slice(0,8); // HH:MM:SS
+  const createdAt = selectedDate + 'T' + currentTime;
+
   const workout = {
     id: 0, // will be replaced by dbInsertOne's returned nextId
-    date: now.toISOString().slice(0,10),
+    date: selectedDate,
     inTime, outTime: finalOut, duration, warmup,
     muscles: [...selectedMuscles],
     exercises: currentExercises
@@ -2402,6 +2426,10 @@ function clearLog() {
   inTime = null; outTime = null;
   document.getElementById('warmup-min').value = '';
   document.getElementById('session-notes').value = '';
+  // Reset workout date to today
+  const todayStr = new Date().toISOString().slice(0,10);
+  const dateFld = document.getElementById('workout-date');
+  if (dateFld) { dateFld.value = todayStr; updateWorkoutDateLabel(todayStr); }
   ['in','out'].forEach(t => {
     const el = document.getElementById(t+'-time-display');
     el.textContent = '--:--'; el.classList.add('empty');
@@ -2451,9 +2479,10 @@ function renderHistory() {
           const kg = parseFloat(s.kg)||parseFloat(s.weight)||0;
           return b + (kg * (s.reps||0));
         }, 0), 0);
+        const dayBadge = w.id ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;color:var(--accent);background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);border-radius:4px;padding:1px 7px;letter-spacing:1px">DAY ${w.id}</span>` : '';
         return `<div class="workout-item" onclick="viewWorkout(${w.id})">
           <div class="workout-item-header">
-            <div class="workout-date">${formatDate(w.date)}</div>
+            <div class="workout-date">${formatDate(w.date)} ${dayBadge}</div>
             <div class="workout-duration">${w.duration}min</div>
           </div>
           <div class="workout-muscles">${w.muscles.map(m=>`<span class="muscle-tag ${m}">${m.toUpperCase()}</span>`).join('')}</div>
@@ -2476,7 +2505,7 @@ function renderWorkoutDetail(w) {
   document.getElementById('history-list').innerHTML = `
     <button class="back-btn" onclick="viewingWorkout=null;renderHistory()">← Back to History</button>
     <div style="margin-bottom:14px">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--text);margin-bottom:4px">${formatDate(w.date)}</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:900;color:var(--text);margin-bottom:4px">${formatDate(w.date)} ${w.id ? `<span style="font-size:14px;font-weight:700;color:var(--accent);background:rgba(0,229,255,0.1);border:1px solid rgba(0,229,255,0.25);border-radius:4px;padding:1px 8px;letter-spacing:1px;vertical-align:middle">DAY ${w.id}</span>` : ''}</div>
       <div style="font-size:11px;color:var(--text2)">${w.inTime} → ${w.outTime} · <span style="color:var(--accent);font-weight:700">${w.duration} min</span>${w.warmup?' · '+w.warmup+'min warmup':''}</div>
       <div class="workout-muscles" style="margin-top:8px">${w.muscles.map(m=>`<span class="muscle-tag ${m}">${m.toUpperCase()}</span>`).join('')}</div>
     </div>
