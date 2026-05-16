@@ -3513,6 +3513,51 @@ async function deleteGroqKeyFromSupabase() {
   return true;
 }
 
+function getWorkoutTotalVolume(workout) {
+  return (workout.exercises || []).reduce((total, ex) => {
+    return total + getSets(ex).reduce((sum, s) => {
+      const kg = parseFloat(s.kg) || parseFloat(s.weight) || 0;
+      const reps = parseInt(s.reps) || 0;
+      return sum + (kg * reps);
+    }, 0);
+  }, 0);
+}
+
+function getWorkoutTotalSets(workout) {
+  return (workout.exercises || []).reduce((count, ex) => count + getSets(ex).length, 0);
+}
+
+function formatWorkoutSummary(workout) {
+  const muscles = (workout.muscles || []).join(', ') || 'Unknown';
+  const timeLabel = workout.inTime && workout.outTime
+    ? `${workout.inTime}-${workout.outTime}`
+    : workout.duration ? `${workout.duration}min` : 'N/A';
+  const totalVol = getWorkoutTotalVolume(workout);
+  const totalSets = getWorkoutTotalSets(workout);
+  const header = `D${workout.id}|${muscles}|${timeLabel}|S${totalSets}|V${totalVol}`;
+
+  const exLines = (workout.exercises || []).map(ex => {
+    const name = ex.name || ex.name_raw || '';
+    if (!name) return null;
+    if (isCardioEx(name) || ex.type === 'cardio') {
+      return `${name}[Cardio]|${ex.duration_min || 0}m`;
+    }
+    const sets = getSets(ex).map((s, i) => `${i+1}:${s.kg||s.weight||0}x${s.reps||0}`).join(',');
+    const bestSet = getSets(ex).reduce((best, s) => {
+      const kg = parseFloat(s.kg) || parseFloat(s.weight) || 0;
+      const reps = parseInt(s.reps) || 0;
+      if (!best || kg > best.kg || (kg === best.kg && reps > best.reps)) return { kg, reps };
+      return best;
+    }, null);
+    const maxLine = bestSet ? `${bestSet.kg}x${bestSet.reps}` : '0x0';
+    const volume = getSets(ex).reduce((sum, s) => sum + ((parseFloat(s.kg) || parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0)), 0);
+    const muscleTag = ex.muscle || inferMuscleForExercise(name) || 'Unknown';
+    return `${name}[${muscleTag}]|${sets}|M${maxLine}|V${volume}`;
+  }).filter(Boolean);
+
+  return [header, ...exLines].join('\n');
+}
+
 // ── Workout Analysis ───────────────────────────────────────────────────────
 function analyzeWorkouts() {
   if (workouts.length === 0) {
@@ -3557,6 +3602,7 @@ function analyzeWorkouts() {
   // Last 7 workouts (by count) as default context
   const sortedDesc = [...workouts].sort((a,b) => new Date(b.date) - new Date(a.date));
   const last7Workouts = sortedDesc.slice(0, 7);
+  const allWorkouts = sorted;
 
   // Detect latest workout's muscle groups, then find the previous session with same muscles
   const latestWorkout = sortedDesc[0];
@@ -3589,6 +3635,9 @@ function analyzeWorkouts() {
     return `ID:${w.id} ${w.date} | ${(w.muscles||[]).join(',')} | ${w.duration||0}min${tag}\n  ${exList.join('\n  ')}`;
   });
 
+  const summaryAllWorkouts = allWorkouts.map(formatWorkoutSummary).join('\n\n');
+  const lastSameMuscleSummary = prevSameMuscleWorkout ? formatWorkoutSummary(prevSameMuscleWorkout) : 'None found';
+
   coachStats = {
     total_sessions: workouts.length,
     date_range: dates.length > 0 ? `${dates[0]} to ${dates[dates.length-1]}` : 'N/A',
@@ -3600,10 +3649,59 @@ function analyzeWorkouts() {
       : 'Last 7 workouts',
     latest_muscles: latestMuscles.join(', ') || 'Unknown',
     most_trained: Object.keys(muscleFreq).length > 0 ? Object.keys(muscleFreq).reduce((a,b) => muscleFreq[a] > muscleFreq[b] ? a : b) : 'None',
-    least_trained: Object.keys(muscleFreq).length > 0 ? Object.keys(muscleFreq).reduce((a,b) => muscleFreq[a] < muscleFreq[b] ? a : b) : 'None'
+    least_trained: Object.keys(muscleFreq).length > 0 ? Object.keys(muscleFreq).reduce((a,b) => muscleFreq[a] < muscleFreq[b] ? a : b) : 'None',
+    summary_all_workouts: summaryAllWorkouts,
+    last_same_muscle_summary: lastSameMuscleSummary
   };
 
   document.getElementById('coach-status').textContent = `✅ Ready | ${workouts.length} sessions | ${prs.length} PRs tracked`;
+}
+
+function isWorkoutAnalysisRequest(message) {
+  if (!message) return false;
+  const msg = message.toLowerCase();
+  const analysisKeywords = [
+    'analyze', 'analyse', 'review', 'compare', 'comparison', 'progress',
+    'performance', 'assess', 'assessment', 'improve', 'improvement',
+    'strength', 'fatigue', 'balance', 'what changed', 'did i improve',
+    'how was', 'next workout', 'should i', 'shall i', 'recommend', 'plan',
+    'rest', 'break', 'recover', 'recovery', 'need a break', 'take a break'
+  ];
+  const isGeneralRecommendation = ['should i', 'shall i', 'need', 'rest', 'break', 'recover', 'recovery'].some(k => msg.includes(k));
+  const hasWorkoutContext = ['workout', 'session', 'training', 'week', 'day', 'last'].some(k => msg.includes(k));
+  return analysisKeywords.some(k => msg.includes(k)) || (isGeneralRecommendation && hasWorkoutContext);
+}
+
+function buildPlainSystemPrompt() {
+  if (!coachStats) return '';
+  return `You are Coach Rex — elite personal trainer. Use the available workout history data to answer clearly and directly.
+
+ATHLETE CONTEXT:
+- Total sessions: ${coachStats.total_sessions}
+- Date range: ${coachStats.date_range}
+- Most trained: ${coachStats.most_trained}
+- Least trained: ${coachStats.least_trained}
+- Latest session muscles: ${coachStats.latest_muscles}
+- Frequency: ${coachStats.muscle_frequency}
+- PRs: ${coachStats.personal_records}
+
+FULL WORKOUT HISTORY SUMMARY:
+${coachStats.summary_all_workouts}
+
+LAST SAME MUSCLE WORKOUT:
+${coachStats.last_same_muscle_summary}
+
+GENERAL RESPONSE RULES:
+- Answer general or statistical questions in plain language.
+- Do NOT use the structured workout analysis format.
+- Do NOT use emojis or section headers for general questions.
+- Use the workout summary only to support the answer.
+- If the user explicitly asks for analysis, comparison, review, or progress, switch to the workout analysis format.
+
+SIMPLE STYLE:
+- Keep responses short and direct.
+- Use clean sentences, not report-style sections.
+`;
 }
 
 function buildSystemPrompt() {
@@ -3618,6 +3716,12 @@ ATHLETE CONTEXT:
 - Latest session muscles: ${coachStats.latest_muscles}
 - Frequency: ${coachStats.muscle_frequency}
 - PRs: ${coachStats.personal_records}
+
+FULL WORKOUT HISTORY SUMMARY:
+${coachStats.summary_all_workouts}
+
+LAST SAME MUSCLE WORKOUT:
+${coachStats.last_same_muscle_summary}
 
 RECENT WORKOUTS:
 ${coachStats.recent_label.toUpperCase()}:
@@ -4154,7 +4258,9 @@ async function callGroq(userMessage) {
   }
 
   coachMessages.push({ role: 'user', content: enhancedMessage });
-  const messages = [{ role: 'system', content: buildSystemPrompt() }, ...coachMessages];
+  const useAnalysisPrompt = isWorkoutAnalysisRequest(userMessage);
+  const systemPrompt = useAnalysisPrompt ? buildSystemPrompt() : buildPlainSystemPrompt();
+  const messages = [{ role: 'system', content: systemPrompt }, ...coachMessages];
 
   // Try each key; rotate on rate-limit errors
   const totalKeys = _cachedApiKeys.length;
