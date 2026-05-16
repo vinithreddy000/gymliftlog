@@ -3635,7 +3635,16 @@ function analyzeWorkouts() {
     return `ID:${w.id} ${w.date} | ${(w.muscles||[]).join(',')} | ${w.duration||0}min${tag}\n  ${exList.join('\n  ')}`;
   });
 
-  const summaryAllWorkouts = allWorkouts.map(formatWorkoutSummary).join('\n\n');
+  const cutoff = new Date();
+  cutoff.setHours(0,0,0,0);
+  cutoff.setDate(cutoff.getDate() - 30);
+  const last30DaysWorkouts = allWorkouts.filter(w => {
+    const d = new Date((w.date || '') + 'T12:00:00');
+    return !Number.isNaN(d.getTime()) && d >= cutoff;
+  });
+  const summary30Days = last30DaysWorkouts.length > 0
+    ? last30DaysWorkouts.map(formatWorkoutSummary).join('\n\n')
+    : 'No workouts in the last 30 days.';
   const lastSameMuscleSummary = prevSameMuscleWorkout ? formatWorkoutSummary(prevSameMuscleWorkout) : 'None found';
 
   coachStats = {
@@ -3650,7 +3659,7 @@ function analyzeWorkouts() {
     latest_muscles: latestMuscles.join(', ') || 'Unknown',
     most_trained: Object.keys(muscleFreq).length > 0 ? Object.keys(muscleFreq).reduce((a,b) => muscleFreq[a] > muscleFreq[b] ? a : b) : 'None',
     least_trained: Object.keys(muscleFreq).length > 0 ? Object.keys(muscleFreq).reduce((a,b) => muscleFreq[a] < muscleFreq[b] ? a : b) : 'None',
-    summary_all_workouts: summaryAllWorkouts,
+    summary_30days: summary30Days,
     last_same_muscle_summary: lastSameMuscleSummary
   };
 
@@ -3667,9 +3676,16 @@ function isWorkoutAnalysisRequest(message) {
     'how was', 'next workout', 'should i', 'shall i', 'recommend', 'plan',
     'rest', 'break', 'recover', 'recovery', 'need a break', 'take a break'
   ];
+  const explicitWorkoutPhrases = [
+    'my latest workout', 'my last workout', 'latest workout', 'last workout',
+    'current workout', 'current session', 'my workout', 'workout today',
+    'this week workout', 'this month workout', 'compare day', 'compare workout',
+    'compare session', 'last session', 'last day'
+  ];
+  const hasWorkoutPhrase = explicitWorkoutPhrases.some(k => msg.includes(k));
   const isGeneralRecommendation = ['should i', 'shall i', 'need', 'rest', 'break', 'recover', 'recovery'].some(k => msg.includes(k));
-  const hasWorkoutContext = ['workout', 'session', 'training', 'week', 'day', 'last'].some(k => msg.includes(k));
-  return analysisKeywords.some(k => msg.includes(k)) || (isGeneralRecommendation && hasWorkoutContext);
+  const hasWorkoutContext = ['workout', 'session', 'training', 'week', 'day', 'last', 'today', 'current'].some(k => msg.includes(k));
+  return analysisKeywords.some(k => msg.includes(k)) || hasWorkoutPhrase || (isGeneralRecommendation && hasWorkoutContext);
 }
 
 function buildPlainSystemPrompt() {
@@ -3685,8 +3701,8 @@ ATHLETE CONTEXT:
 - Frequency: ${coachStats.muscle_frequency}
 - PRs: ${coachStats.personal_records}
 
-FULL WORKOUT HISTORY SUMMARY:
-${coachStats.summary_all_workouts}
+LAST 30 DAYS WORKOUT SUMMARY:
+${coachStats.summary_30days}
 
 LAST SAME MUSCLE WORKOUT:
 ${coachStats.last_same_muscle_summary}
@@ -3717,8 +3733,8 @@ ATHLETE CONTEXT:
 - Frequency: ${coachStats.muscle_frequency}
 - PRs: ${coachStats.personal_records}
 
-FULL WORKOUT HISTORY SUMMARY:
-${coachStats.summary_all_workouts}
+LAST 30 DAYS WORKOUT SUMMARY:
+${coachStats.summary_30days}
 
 LAST SAME MUSCLE WORKOUT:
 ${coachStats.last_same_muscle_summary}
